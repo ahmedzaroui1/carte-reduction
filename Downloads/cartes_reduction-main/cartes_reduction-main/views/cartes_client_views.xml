@@ -1,0 +1,39 @@
+<odoo>
+    <record id="view_cartes_client_tree" model="ir.ui.view">
+        <field name="name">cartes.client.tree</field>
+        <field name="model">cartes.client</field>
+        <field name="arch" type="xml">
+            <tree string="Clients" create="0" edit="0" delete="0">
+                <field name="name"/>
+                <field name="prenom"/>
+                <field name="cin_masked"/>
+                <field name="num_telephone" groups="cartes_reduction.cartes_manager_group"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_cartes_client_form" model="ir.ui.view">
+        <field name="name">cartes.client.form</field>
+        <field name="model">cartes.client</field>
+        <field name="arch" type="xml">
+            <form string="Client" create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="prenom"/>
+                        <field name="cin_masked" readonly="1"/>
+                        <field name="cin" groups="cartes_reduction.cartes_manager_group"/>
+                        <field name="num_telephone" groups="cartes_reduction.cartes_manager_group"/>
+                        <field name="carte_ids" widget="many2many_tags"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cartes_client_privacy" model="ir.actions.act_window">
+        <field name="name">Clients (CIN protégé)</field>
+        <field name="res_model">cartes.client</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

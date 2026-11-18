@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pyc
+.git/
+.gitignore
+tests/
+reports/
+*.tar.gz
+.env
+docker-compose*.yml
+Dockerfile
+DOCKER_COMPOSE_SETUP.md

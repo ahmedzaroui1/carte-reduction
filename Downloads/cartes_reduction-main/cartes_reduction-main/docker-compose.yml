@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-odoo17}
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odoo} -d ${POSTGRES_DB:-odoo17}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  odoo-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cartes-reduction-odoo:17
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
+      --init=base,cartes_reduction
+      --stop-after-init
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cartes-reduction-odoo:17
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      odoo-init:
+        condition: service_completed_successfully
+    ports:
+      - "${ODOO_PORT:-8069}:8069"
+    environment:
+      - HOST=db
+      - PORT=5432
+      - USER=${POSTGRES_USER:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD:-odoo}
+      - DATABASE=${POSTGRES_DB:-odoo17}
+      - ADDONS_PATH=/mnt/extra-addons,/mnt/extra-addons/cartes_reduction
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-odoo}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-odoo}
+      - DB_DATABASE=${POSTGRES_DB:-odoo17}
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf
+    command: odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
+
+volumes:
+  pg-data:
+  odoo-data:
