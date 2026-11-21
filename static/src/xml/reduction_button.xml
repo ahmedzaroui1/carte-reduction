@@ -16,4 +16,12 @@ aria-label="Custom Alert" title="Custom Alert"/>
 
  </button>
     </t>
+
+    <t t-name="point_of_sale.VerifyCardOtpButton">
+        <button class="control-button btn btn-light rounded-0 fw-bolder"
+                t-on-click="() => this.onClick()">
+            <i class="fa fa-shield" role="img" aria-label="Vérification OTP"/>
+            <span> Envoyer Code OTP / QR </span>
+        </button>
+    </t>
 </templates>

@@ -7,6 +7,7 @@ class SaleOrder(models.Model):
     forced_discount = fields.Float(string="Remise forcée")
     forced_discount_rule_id = fields.Many2one('product.association', string="Règle de remise forcée")
     order_line = fields.One2many('sale.order.line', 'order_id', string='Order Lines', copy=True)
+    loyalty_points_processed = fields.Boolean(default=False, copy=False, readonly=True)
     def _create_loyalty_reward_line(self, reward, line=None):
         """Crée une ligne de récompense"""
         vals = {
@@ -48,7 +49,7 @@ class SaleOrder(models.Model):
             return None
 
         valid_attributions = partner.cartes_attribution_ids.filtered(
-            lambda a: a.state == 'validated' and a.date_expiration >= fields.Date.today()
+            lambda a: a.state in ('validated', 'renouvelé') and a.date_expiration >= fields.Date.today()
         )
 
         for attribution in valid_attributions:
@@ -81,19 +82,9 @@ class SaleOrder(models.Model):
         return None
 
     def _compute_amounts(self):
-        """Version optimisée du recalcul"""
         for order in self:
-            # Force le recalcul des prix des lignes
-            order.order_line._compute_price()
-
-            # Utilise la méthode standard de calcul des totaux
-            if hasattr(order, '_amount_all'):
-                order._amount_all()
-            else:
-                # Fallback manuel si _amount_all n'existe pas
-                order.amount_untaxed = sum(line.price_subtotal for line in order.order_line)
-                order.amount_tax = sum(line.price_tax for line in order.order_line)
-                order.amount_total = order.amount_untaxed + order.amount_tax
+            order.order_line._apply_card_loyalty_discount()
+        return super()._compute_amounts()
     def _remove_standard_discounts(self):
         """Supprime toutes les remises standards existantes"""
         self.order_line.filtered(
@@ -115,6 +106,15 @@ class SaleOrder(models.Model):
     def _cart_update(self, product_id, line_id=None, add_qty=0, set_qty=0, **kwargs):
         res = super()._cart_update(product_id, line_id, add_qty, set_qty, **kwargs)
         self._apply_custom_discounts()
+        if self.website_id:
+            for line in self.website_order_line:
+                if hasattr(line, '_get_loyalty_info'):
+                    loyalty_info = line._get_loyalty_info()
+                    if loyalty_info.get('max_discount', 0) > 0:
+                        line.write({
+                            'discount': loyalty_info['max_discount'],
+                            'price_unit': line.product_id.list_price
+                        })
         return res
 
     def update_existing_lines(self):
@@ -246,22 +246,6 @@ class SaleOrder(models.Model):
     def _compute_promo(self):
         self._update_programs_and_rewards()
 
-    def _cart_update(self, product_id, line_id=None, add_qty=0, set_qty=0, **kwargs):
-        res = super()._cart_update(product_id, line_id, add_qty, set_qty, **kwargs)
-
-        # Réappliquer vos discounts après chaque mise à jour
-        if self.website_id:
-            for line in self.website_order_line:
-                if hasattr(line, '_get_loyalty_info'):
-                    loyalty_info = line._get_loyalty_info()
-                    if loyalty_info.get('max_discount', 0) > 0:
-                        line.write({
-                            'discount': loyalty_info['max_discount'],
-                            'price_unit': line.product_id.list_price
-                        })
-
-        return res
-
     def _check_product_suggestions(self):
         self.ensure_one()
         if not self.partner_id:
@@ -296,10 +280,24 @@ class SaleOrder(models.Model):
 
     def action_confirm(self):
         """Override pour vérifier les suggestions avant confirmation"""
-        suggestion = self._check_product_suggestions()
-        if suggestion:
-            return suggestion
-        return super().action_confirm()
+        if self.env.context.get("skip_card_eval"):
+            return super().action_confirm()
+        for order in self.filtered(lambda record: not record.website_id):
+            suggestion = order._check_product_suggestions()
+            if suggestion:
+                return suggestion
+        result = super().action_confirm()
+        for order in self.filtered(
+            lambda record: record.state in ("sale", "done") and record.partner_id
+        ):
+            order.partner_id._process_card_purchase(order)
+            if order.website_id:
+                invoices = order._create_invoices(final=True)
+                for invoice in invoices:
+                    if invoice.state == "draft":
+                        invoice.action_post()
+                    invoice._send_cartes_invoice_email()
+        return result
 
     def _apply_best_loyalty(self):
         """Applique la meilleure remise de fidélité disponible"""

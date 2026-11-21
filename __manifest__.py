@@ -1,10 +1,10 @@
 {
     'name': "Cartes de Réduction",
-    'version': '1.0',
+    'version': '17.0.1.1.0',
     'author': "sassi tasnim ",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
-    'depends': ['base', 'sale_management','website' ,'account' , 'point_of_sale','loyalty', 'product','pos_loyalty','sale','sale_loyalty','web','website_sale'],
+    'depends': ['base', 'sale_management','website' ,'account' , 'point_of_sale','loyalty', 'product','pos_loyalty','sale','sale_loyalty','web','website_sale', 'portal', 'payment_demo'],
     'external_dependencies': {
         'python': ['scikit-learn>=1.0.0', 'joblib>=1.0.0', 'pandas>=1.0.0']
     },
@@ -25,8 +25,9 @@
         'views/product_template_view_inherit.xml',
         'views/sale_loyalty_templates.xml',
         'views/website.xml',
-        'views/dashboard_client.xml',
+        'views/portal_templates.xml',
         'views/dashboard_vente_views.xml',
+        'views/dashboard_client.xml',
         'views/dashbboard_product.xml',
         'views/base_menu.xml',
 
@@ -50,6 +51,8 @@
         'web.assets_frontend': [
 
             'cartes_reduction/static/src/js/website_sale.js',
+            'cartes_reduction/static/src/js/portal_cards.js',
+            'cartes_reduction/static/src/scss/portal_cards.scss',
 
 
 
@@ -59,6 +62,7 @@
 
     'installable': True,
     'application': True,
+    'post_init_hook': 'post_init_hook',
     'images': ['static/description/icon.png',
                'static/img/idelity_card.png',
                'static/img/loyalty_card.png',

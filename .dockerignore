@@ -1,0 +1,6 @@
+.env
+odoo.conf
+MANUAL_LIVE_BROWSER_TESTING_GUIDE_FR.md
+.git
+__pycache__
+*.py[cod]

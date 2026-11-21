@@ -1,8 +1,18 @@
 import pandas as pd
 
-from odoo import fields, models, api, tools
-from odoo.exceptions import UserError
+import base64
+import calendar
+import hashlib
+import hmac
+import html
+import io
+import secrets
 from datetime import datetime, timedelta
+
+import qrcode
+
+from odoo import fields, models, api, tools
+from odoo.exceptions import AccessError, UserError
 import logging
 import os
 import joblib
@@ -10,6 +20,8 @@ import joblib
 from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
+
+POINTS_PROGRAM_NAME = "Cartes de Réduction - Points TND"
 
 
 class ResPartner(models.Model):
@@ -34,7 +46,6 @@ class ResPartner(models.Model):
         string="Commandes PoS"
     )
 
-
     total_sales = fields.Monetary(
         string="Total des Achats",
         compute="_compute_total_sales",
@@ -52,6 +63,424 @@ class ResPartner(models.Model):
         'res.currency',
         default=lambda self: self.env.company.currency_id
     )
+    pos_otp_digest = fields.Char(copy=False, readonly=True)
+    pos_otp_qr_digest = fields.Char(copy=False, readonly=True)
+    pos_otp_expires_at = fields.Datetime(copy=False, readonly=True)
+    pos_otp_attempts = fields.Integer(default=0, copy=False, readonly=True)
+    pos_otp_locked_until = fields.Datetime(copy=False, readonly=True)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if self.env.context.get("skip_card_eval"):
+            return super().create(vals_list)
+
+        tunisian_defaults = {
+            "country_id": (
+                self.env.ref("base.tn", raise_if_not_found=False).id
+                if self.env.ref("base.tn", raise_if_not_found=False)
+                else False
+            ),
+            "city": "Tunis",
+            "street": "1 Avenue Habib Bourguiba",
+            "phone": "+21600000000",
+            "zip": "1000",
+        }
+        normalized_vals = []
+        for vals in vals_list:
+            vals = dict(vals)
+            if not vals.get("is_company"):
+                for field_name, default in tunisian_defaults.items():
+                    if not vals.get(field_name):
+                        vals[field_name] = default() if callable(default) else default
+            normalized_vals.append(vals)
+
+        partners = super().create(normalized_vals)
+        for partner in partners:
+            if partner.is_company and not partner.customer_rank:
+                continue
+            partner._assign_welcome_bronze()
+        return partners
+
+    def _get_points_program(self):
+        self.ensure_one()
+        program = self.env["loyalty.program"].search([
+            ("name", "=", POINTS_PROGRAM_NAME),
+            ("program_type", "=", "loyalty"),
+            ("active", "=", True),
+            ("company_id", "in", [False, self.env.company.id]),
+        ], limit=1)
+        if not program:
+            raise UserError("Le programme de points TND n'est pas configuré.")
+        return program
+
+    def _get_or_create_points_card(self):
+        self.ensure_one()
+        partner = self.commercial_partner_id
+        program = self._get_points_program()
+        card = self.env["loyalty.card"].search([
+            ("partner_id", "=", partner.id),
+            ("program_id", "=", program.id),
+            "|",
+            ("expiration_date", "=", False),
+            ("expiration_date", ">=", fields.Date.context_today(self)),
+        ], limit=1)
+        if not card:
+            card = self.env["loyalty.card"].with_context(skip_card_eval=True).create({
+                "partner_id": partner.id,
+                "program_id": program.id,
+                "points": 0.0,
+            })
+        return card
+
+    def _send_card_lifecycle_notification(self, card, notification_type, subject, body):
+        self.ensure_one()
+        if self.email:
+            email_from = (
+                self.env.user.email_formatted
+                or self.env.company.email_formatted
+                or "no-reply@cartes-reduction.test"
+            )
+            self.env["mail.mail"].with_context(skip_card_eval=True).create({
+                "subject": subject,
+                "body_html": body,
+                "email_to": self.email,
+                "email_from": email_from,
+            }).send()
+
+        return self.env["notifications.client"].with_context(skip_card_eval=True).create({
+            "name": subject,
+            "message": body,
+            "client_id": self.id,
+            "date": fields.Datetime.now(),
+            "notification_type": notification_type,
+        })
+
+    def _get_pos_otp_secret(self):
+        parameters = self.env["ir.config_parameter"].sudo()
+        secret = parameters.get_param("cartes_reduction.pos_otp_secret")
+        if not secret:
+            secret = secrets.token_urlsafe(48)
+            parameters.set_param("cartes_reduction.pos_otp_secret", secret)
+        return secret.encode()
+
+    def _pos_otp_digest(self, value, purpose):
+        self.ensure_one()
+        message = f"{purpose}:{self.id}:{value}".encode()
+        return hmac.new(self._get_pos_otp_secret(), message, hashlib.sha256).hexdigest()
+
+    def _issue_pos_otp(self):
+        self.ensure_one()
+        partner = self.sudo()
+        now = fields.Datetime.now()
+        if partner.pos_otp_locked_until and partner.pos_otp_locked_until > now:
+            raise UserError("Trop de tentatives. Réessayez après la fin du délai de sécurité.")
+        if not partner.email:
+            raise UserError("Le client doit avoir une adresse e-mail pour recevoir son code.")
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        expires_at = now + timedelta(seconds=60)
+        expires_epoch = calendar.timegm(expires_at.timetuple())
+        nonce = secrets.token_urlsafe(18)
+        payload = f"CR1.{partner.id}.{expires_epoch}.{nonce}"
+        signature = hmac.new(
+            self._get_pos_otp_secret(),
+            payload.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        qr_token = f"{payload}.{signature}"
+
+        qr_image = qrcode.make(qr_token)
+        image_buffer = io.BytesIO()
+        qr_image.save(image_buffer, format="PNG")
+        qr_data_uri = "data:image/png;base64," + base64.b64encode(
+            image_buffer.getvalue()
+        ).decode()
+
+        partner.with_context(skip_card_eval=True).sudo().write({
+            "pos_otp_digest": self._pos_otp_digest(code, "otp"),
+            "pos_otp_qr_digest": self._pos_otp_digest(qr_token, "qr"),
+            "pos_otp_expires_at": expires_at,
+            "pos_otp_attempts": 0,
+            "pos_otp_locked_until": False,
+        })
+        body = (
+            f"<p>Votre code de vérification POS est "
+            f"<strong>{html.escape(code)}</strong>.</p>"
+            "<p>Il expire dans 60 secondes et ne peut être utilisé qu'une fois.</p>"
+            f'<p><img alt="QR code de vérification" src="{qr_data_uri}"/></p>'
+        )
+        self.env["mail.mail"].sudo().with_context(skip_card_eval=True).create({
+            "subject": "Votre code de vérification POS",
+            "body_html": body,
+            "email_to": partner.email,
+            "email_from": (
+                self.env.company.email_formatted
+                or "no-reply@cartes-reduction.test"
+            ),
+        }).send()
+        self.env["notifications.client"].sudo().with_context(
+            skip_card_eval=True
+        ).create({
+            "name": "Code de vérification POS envoyé",
+            "message": "Un code de vérification POS valable 60 secondes a été envoyé.",
+            "client_id": partner.id,
+            "date": now,
+            "notification_type": "pos_otp",
+        })
+        return {
+            "code": code,
+            "qr_token": qr_token,
+            "qr_data_uri": qr_data_uri,
+            "expires_epoch": expires_epoch,
+            "expires_at": fields.Datetime.to_string(expires_at),
+        }
+
+    def action_send_pos_otp(self):
+        if not self.env.user.has_group("point_of_sale.group_pos_user"):
+            raise AccessError("Seuls les utilisateurs du Point de Vente peuvent envoyer un code.")
+        self.ensure_one()
+        issued = self._issue_pos_otp()
+        return {
+            "expires_epoch": issued["expires_epoch"],
+            "message": "Le code de vérification a été envoyé au client.",
+        }
+
+    def verify_pos_otp_or_qr(self, code_or_qr):
+        if not self.env.user.has_group("point_of_sale.group_pos_user"):
+            raise AccessError("Seuls les utilisateurs du Point de Vente peuvent vérifier un code.")
+        self.ensure_one()
+        partner = self.sudo()
+        now = fields.Datetime.now()
+
+        if partner.pos_otp_locked_until and partner.pos_otp_locked_until > now:
+            return {"success": False, "message": "Vérification temporairement verrouillée."}
+        if not partner.pos_otp_expires_at or partner.pos_otp_expires_at <= now:
+            return {"success": False, "message": "Le code est expiré. Demandez-en un nouveau."}
+        if partner.pos_otp_attempts >= 5:
+            return {"success": False, "message": "Trop de tentatives. Demandez un nouveau code plus tard."}
+
+        candidate = str(code_or_qr or "").strip()
+        is_qr = candidate.startswith("CR1.")
+        expected = partner.pos_otp_qr_digest if is_qr else partner.pos_otp_digest
+        actual = self._pos_otp_digest(candidate, "qr" if is_qr else "otp")
+        matches = hmac.compare_digest(expected or ("0" * 64), actual)
+        if is_qr:
+            try:
+                version, partner_id, expiry, nonce, signature = candidate.split(".")
+                payload = ".".join((version, partner_id, expiry, nonce))
+                expected_signature = hmac.new(
+                    self._get_pos_otp_secret(),
+                    payload.encode(),
+                    hashlib.sha256,
+                ).hexdigest()
+                matches = (
+                    matches
+                    and version == "CR1"
+                    and int(partner_id) == partner.id
+                    and int(expiry) >= calendar.timegm(now.timetuple())
+                    and hmac.compare_digest(signature, expected_signature)
+                )
+            except (TypeError, ValueError):
+                matches = False
+
+        if not matches:
+            attempts = partner.pos_otp_attempts + 1
+            values = {"pos_otp_attempts": attempts}
+            if attempts >= 5:
+                values["pos_otp_locked_until"] = now + timedelta(minutes=5)
+            partner.with_context(skip_card_eval=True).write(values)
+            return {"success": False, "message": "Code incorrect."}
+
+        partner.with_context(skip_card_eval=True).write({
+            "pos_otp_digest": False,
+            "pos_otp_qr_digest": False,
+            "pos_otp_expires_at": False,
+            "pos_otp_attempts": 0,
+            "pos_otp_locked_until": False,
+        })
+        return {"success": True, "message": "Client vérifié."}
+
+    def _assign_welcome_bronze(self):
+        if self.env.context.get("skip_card_eval"):
+            return False
+        self.ensure_one()
+        today = fields.Date.context_today(self)
+        bronze = self.env["cartes.reduction"].search([
+            ("carte_type", "=", "bronze"),
+            ("active", "=", True),
+        ], order="id", limit=1)
+        if not bronze:
+            raise UserError("Aucune carte Bronze active n'est configurée.")
+
+        existing = self.env["cartes.attribution"].search([
+            ("client_id", "=", self.id),
+            ("carte_ids", "in", bronze.ids),
+            ("state", "in", ["validated", "renouvelé"]),
+            ("date_expiration", ">=", today),
+        ], limit=1)
+        if existing:
+            return existing
+
+        points_card = self._get_or_create_points_card()
+        base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+        account_link = html.escape(f"{base_url}/my/cartes", quote=True)
+        attribution = self.env["cartes.attribution"].with_context(skip_card_eval=True).create({
+            "client_id": self.id,
+            "carte_ids": [(6, 0, bronze.ids)],
+            "state": "validated",
+            "date_attribution": bronze.date_debut or today,
+            "date_expiration": bronze.date_expiration or (today + timedelta(days=365)),
+        })
+        bronze.with_context(skip_card_eval=True).write({
+            "nombre_utilisateurs": bronze.nombre_utilisateurs + 1,
+        })
+        self._send_card_lifecycle_notification(
+            bronze,
+            "welcome",
+            f"Bienvenue - carte {bronze.name}",
+            (
+                f"Votre carte Bronze {bronze.name} est active. "
+                f"Votre solde initial est de {points_card.points:g} points. "
+                f'<a href="{account_link}">Go to my account</a>'
+            ),
+        )
+        return attribution
+
+    def _evaluate_next_card_tier(self):
+        if self.env.context.get("skip_card_eval"):
+            return False
+        self.ensure_one()
+        today = fields.Date.context_today(self)
+        tier_rank = {"bronze": 0, "silver": 1, "gold": 2}
+        attributions = self.env["cartes.attribution"].search([
+            ("client_id", "=", self.id),
+            ("state", "in", ["validated", "renouvelé"]),
+            ("date_expiration", ">=", today),
+        ])
+        active_cards = attributions.mapped("carte_ids").filtered(
+            lambda card: card.active and card.carte_type in tier_rank
+        )
+        if not active_cards:
+            self._assign_welcome_bronze()
+            return False
+
+        assigned_attributions = attributions
+        last_attribution = False
+        while True:
+            current_rank = max(
+                tier_rank[card.carte_type]
+                for card in assigned_attributions.mapped("carte_ids").filtered(
+                    lambda card: card.active and card.carte_type in tier_rank
+                )
+            )
+            next_rank = current_rank + 1
+            next_type = next(
+                (name for name, rank in tier_rank.items() if rank == next_rank),
+                False,
+            )
+            if not next_type:
+                break
+
+            next_card = self.env["cartes.reduction"].search([
+                ("carte_type", "=", next_type),
+                ("active", "=", True),
+            ], order="id", limit=1)
+            if not next_card or not next_card.is_eligible_for(self):
+                break
+            if self.env["cartes.attribution"].search_count([
+                ("client_id", "=", self.id),
+                ("carte_ids", "in", next_card.ids),
+                ("state", "in", ["validated", "renouvelé"]),
+                ("date_expiration", ">=", today),
+            ]):
+                break
+
+            previous_attributions = assigned_attributions.filtered(
+                lambda attribution: any(
+                    tier_rank.get(card.carte_type, next_rank) < next_rank
+                    for card in attribution.carte_ids
+                )
+            )
+            for attribution in previous_attributions:
+                attribution.with_context(skip_card_eval=True).write({"state": "expired"})
+                for card in attribution.carte_ids:
+                    if card.carte_type in tier_rank:
+                        card.with_context(skip_card_eval=True).write({
+                            "nombre_utilisateurs": max(0, card.nombre_utilisateurs - 1),
+                        })
+
+            last_attribution = self.env["cartes.attribution"].with_context(
+                skip_card_eval=True
+            ).create({
+                "client_id": self.id,
+                "carte_ids": [(6, 0, next_card.ids)],
+                "state": "validated",
+                "date_attribution": next_card.date_debut or today,
+                "date_expiration": next_card.date_expiration or (
+                    today + timedelta(days=365)
+                ),
+            })
+            next_card.with_context(skip_card_eval=True).write({
+                "nombre_utilisateurs": next_card.nombre_utilisateurs + 1,
+            })
+            if next_card.is_vip:
+                self._send_vip_notification(self, next_card, create_attribution=False)
+            else:
+                self._send_card_lifecycle_notification(
+                    next_card,
+                    "card_upgrade",
+                    f"Votre carte évolue vers {next_card.name}",
+                    f"Félicitations, votre carte a été mise à niveau vers "
+                    f"{next_card.name} ({next_card.discount:g} %).",
+                )
+            assigned_attributions = last_attribution
+        return last_attribution
+
+    def _process_card_purchase(self, order):
+        if self.env.context.get("skip_card_eval"):
+            return False
+        self.ensure_one()
+        if not order or order.loyalty_points_processed:
+            return False
+
+        program = self._get_points_program()
+        earning_rule = program.rule_ids.filtered(
+            lambda rule: rule.active and rule.reward_point_mode == "money"
+        )[:1]
+        if not earning_rule:
+            raise UserError("Le programme de points doit avoir une règle monétaire active.")
+
+        order_currency = order.currency_id
+        order_date = order.date_order.date() if order.date_order else fields.Date.context_today(self)
+        amount_tnd = order_currency._convert(
+            order.amount_total,
+            program.currency_id,
+            order.company_id or self.env.company,
+            order_date,
+        )
+        points = max(0.0, amount_tnd * earning_rule.reward_point_amount)
+        if amount_tnd < earning_rule.minimum_amount:
+            points = 0.0
+
+        points_card = self._get_or_create_points_card()
+        if points:
+            points_card.with_context(skip_card_eval=True).write({
+                "points": points_card.points + points,
+            })
+            self._send_card_lifecycle_notification(
+                points_card,
+                "points_awarded",
+                f"{points:g} points fidélité crédités",
+                f"{points:g} points ont été ajoutés après votre achat de {amount_tnd:.3f} TND.",
+            )
+
+        order.with_context(skip_card_eval=True).write({"loyalty_points_processed": True})
+        self.invalidate_recordset(["total_sales", "is_vip"])
+        self._compute_total_sales()
+        self._compute_vip_status()
+        self._evaluate_next_card_tier()
+        self.with_context(skip_card_eval=True).update_behavior_analysis()
+        return points
 
     # Analyse comportementale
     avg_purchase_value = fields.Float(
@@ -124,80 +553,117 @@ class ResPartner(models.Model):
     )
 
     # Méthodes de base
-    @api.depends('pos_order_ids.amount_total')
+    @api.depends(
+        'pos_order_ids.amount_total',
+        'pos_order_ids.state',
+        'sale_order_ids.amount_total',
+        'sale_order_ids.state',
+    )
     def _compute_total_sales(self):
-        """Calcule le total des ventes du client"""
+        """Calcule le total des commandes confirmées, en devise du partenaire."""
         for partner in self:
+            commercial_partner = partner.commercial_partner_id
             pos_orders = self.env['pos.order'].search([
-                ('partner_id', '=', partner.id),
-                ('state', 'in', ['paid', 'done'])
+                ('partner_id', 'child_of', commercial_partner.id),
+                ('state', 'in', ['paid', 'done', 'invoiced']),
             ])
-            partner.total_sales = sum(pos_orders.mapped('amount_total'))
+            sale_orders = self.env['sale.order'].search([
+                ('partner_id', 'child_of', commercial_partner.id),
+                ('state', 'in', ['sale', 'done']),
+            ])
+            target_currency = partner.currency_id or self.env.company.currency_id
+            total = 0.0
+            for order in list(pos_orders) + list(sale_orders):
+                order_date = order.date_order.date() if order.date_order else fields.Date.context_today(partner)
+                total += order.currency_id._convert(
+                    order.amount_total,
+                    target_currency,
+                    order.company_id or self.env.company,
+                    order_date,
+                )
+            partner.total_sales = total
 
     @api.depends('total_sales')
     def _compute_vip_status(self):
         """Définit un client comme VIP si son total des achats dépasse un seuil"""
         VIP_THRESHOLD = 200  # Seuil augmenté pour un vrai cas VIP
-        GOLD_VIP_CARD_PROGRAM = self.env['cartes.reduction'].search([('name', '=', 'Gold_VIP')], limit=1)
 
         for record in self:
-            was_vip = record.is_vip
             record.is_vip = record.total_sales >= VIP_THRESHOLD
 
-            if not was_vip and record.is_vip:
-                self._send_vip_notification(record, GOLD_VIP_CARD_PROGRAM)
-
-    def _send_vip_notification(self, partner, card_program):
+    def _send_vip_notification(self, partner, card_program, create_attribution=True):
         """Envoie la notification VIP"""
-        mail_values = {
-            'subject': f"Félicitations {partner.name} ! Vous êtes désormais VIP 🎉",
-            'body_html': f"""
-                <div>
-                    <p>Bonjour {partner.name},</p>
-                    <p>Vous avez atteint le statut <strong>VIP</strong> !</p>
-                    <p>Total des achats : <strong>{partner.total_sales:.2f} {partner.currency_id.symbol}</strong></p>
-                    <p>Avantages : Carte Gold VIP valable 15 jours</p>
-                    <p>L'équipe {self.env.company.name}</p>
-                </div>
-            """,
-            'email_to': partner.email,
-            'email_from': self.env.user.email,
-        }
-        self.env['mail.mail'].create(mail_values).send()
+        subject = f"Félicitations {partner.name} ! Vous êtes désormais VIP"
+        body = (
+            f"<p>Bonjour {partner.name},</p>"
+            f"<p>Votre carte VIP {card_program.name} est active "
+            f"({card_program.discount:g} % de remise).</p>"
+            f"<p>Total des achats : {partner.total_sales:.2f} "
+            f"{partner.currency_id.symbol or ''}</p>"
+        )
+        partner._send_card_lifecycle_notification(
+            card_program,
+            "vip",
+            subject,
+            body,
+        )
 
-        # Création de la carte VIP
-        expiration_date = fields.Datetime.now() + timedelta(days=15)
-        self.env['cartes.attribution'].create({
-            'client_id': partner.id,
-            'carte_ids': [(6, 0, [card_program.id])],
-            'date_attribution': fields.Datetime.now(),
-            'date_expiration': expiration_date,
-            'state': 'validated',
-        })
+        if create_attribution:
+            today = fields.Date.context_today(self)
+            existing = self.env['cartes.attribution'].search([
+                ('client_id', '=', partner.id),
+                ('carte_ids', 'in', card_program.ids),
+                ('state', 'in', ['validated', 'renouvelé']),
+                ('date_expiration', '>=', today),
+            ], limit=1)
+            if not existing:
+                self.env['cartes.attribution'].with_context(skip_card_eval=True).create({
+                    'client_id': partner.id,
+                    'carte_ids': [(6, 0, card_program.ids)],
+                    'date_attribution': card_program.date_debut or today,
+                    'date_expiration': card_program.date_expiration or (today + timedelta(days=15)),
+                    'state': 'validated',
+                })
 
     # Méthodes d'analyse comportementale
-    @api.depends('pos_order_ids', 'pos_order_ids.amount_total', 'pos_order_ids.date_order')
+    @api.depends(
+        'pos_order_ids',
+        'pos_order_ids.amount_total',
+        'pos_order_ids.date_order',
+        'sale_order_ids',
+        'sale_order_ids.amount_total',
+        'sale_order_ids.date_order',
+        'sale_order_ids.state',
+    )
     def _compute_purchase_stats(self):
         """Calcule les statistiques d'achat"""
         for partner in self:
-            orders = partner.pos_order_ids.filtered(
-                lambda o: o.state in ['paid', 'done'] and o.date_order
+            pos_orders = partner.pos_order_ids.filtered(
+                lambda order: order.state in ['paid', 'done', 'invoiced'] and order.date_order
             )
+            sale_orders = partner.sale_order_ids.filtered(
+                lambda order: order.state in ['sale', 'done'] and order.date_order
+            )
+            orders = list(pos_orders) + list(sale_orders)
 
             # Calcul des métriques de base
             partner.avg_purchase_value = partner.total_sales / len(orders) if orders else 0
 
             # Calcul de la fréquence
             if len(orders) > 1:
-                dates = sorted(orders.mapped('date_order'))
+                dates = sorted(order.date_order for order in orders)
                 deltas = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
                 partner.purchase_frequency = sum(deltas) / len(deltas) if deltas else 30
             else:
                 partner.purchase_frequency = 30  # Valeur par défaut réaliste
 
-            partner.last_purchase_date = max(orders.mapped('date_order')).date() if orders else False
+            last_purchase = max(
+                (order.date_order for order in orders),
+                default=False,
+            )
+            partner.last_purchase_date = fields.Date.to_date(last_purchase) if last_purchase else False
 
-    @api.depends('total_sales', 'last_purchase_date', 'purchase_frequency')
+    @api.depends('total_sales', 'last_purchase_date', 'purchase_frequency', 'is_vip')
     def _compute_rfm_scores(self):
         """Calcule le score RFM avec des seuils adaptés"""
         for partner in self:

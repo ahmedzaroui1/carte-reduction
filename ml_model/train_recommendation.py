@@ -1,151 +1,115 @@
+from datetime import timedelta
 
 import pandas as pd
-import os
-from datetime import timedelta
-from odoo import models, fields, tools
 from mlxtend.frequent_patterns import apriori, association_rules
+
+from odoo import fields, models
+
 import logging
+
 _logger = logging.getLogger(__name__)
+
 
 class ProductAssociationGenerator(models.Model):
     _name = 'product.association.generator'
-    _description = 'Générateur de règles d\'association'
+    _description = "Générateur de règles d'association"
 
     def _get_historical_data(self):
-        # Fichier CSV
-        module_path = os.path.dirname(__file__)
-        csv_path = os.path.join(module_path, 'dataset_achats.csv')
-
-        # Produits à ignorer
-        invalid_products = [
-            "Recharger le e-wallet", "Carte-cadeau", "50% sur votre commande", "70% sur test", "test"
-        ]
-
-        # Charger les données existantes
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path)
-            existing_orders = set(tuple(row) for row in df[['product_1', 'product_2', 'product_3']].values)
-        else:
-            df = pd.DataFrame(columns=['product_1', 'product_2', 'product_3'])
-            existing_orders = set()
-
-        # Rechercher les commandes POS
-        orders = self.env['pos.order'].search([('date_order', '>=', fields.Datetime.now() - timedelta(days=365))])
-
-        new_data = []
+        cutoff = fields.Datetime.now() - timedelta(days=365)
+        orders = self.env['pos.order'].search([
+            ('date_order', '>=', cutoff),
+            ('state', 'in', ['paid', 'done', 'invoiced']),
+        ])
+        transactions = []
         for order in orders:
-            products = [line.product_id.name for line in order.lines if line.product_id.name not in invalid_products]
-            if not products:
-                continue
-            record = (
-                products[0] if len(products) > 0 else '',
-                products[1] if len(products) > 1 else '',
-                products[2] if len(products) > 2 else ''
-            )
-            if record not in existing_orders:
-                new_data.append({
-                    'product_1': record[0],
-                    'product_2': record[1],
-                    'product_3': record[2]
-                })
+            product_ids = list(dict.fromkeys(order.lines.mapped('product_id').ids))
+            if product_ids:
+                transactions.append([str(product_id) for product_id in product_ids])
+        return transactions
 
-        # Ajouter et sauvegarder
-        if new_data:
-            new_df = pd.DataFrame(new_data)
-            df = pd.concat([df, new_df], ignore_index=True)
-            df.to_csv(csv_path, index=False)
-
-        return df
-
-    def _preprocess_data(self, df):
-        # Fusionner les colonnes produits en une liste par ligne (transaction)
-        transactions = df.fillna('').values.tolist()
-
-        # Créer une liste de transactions avec uniquement les noms de produits non vides
-        transaction_list = [[item for item in transaction if item] for transaction in transactions]
-
-        # Créer une dataframe binaire (one-hot encoded)
+    def _preprocess_data(self, transactions):
         from mlxtend.preprocessing import TransactionEncoder
-        te = TransactionEncoder()
-        te_ary = te.fit(transaction_list).transform(transaction_list)
-        basket = pd.DataFrame(te_ary, columns=te.columns_)
 
-        return basket
+        transactions = [items for items in transactions if items]
+        if not transactions:
+            return pd.DataFrame()
+        encoder = TransactionEncoder()
+        encoded = encoder.fit(transactions).transform(transactions)
+        return pd.DataFrame(encoded, columns=encoder.columns_)
 
     def generate_association_rules(self, min_support=0.01, min_confidence=0.7):
         _logger.info("Début de la génération des règles d'association")
+        basket = self._preprocess_data(self._get_historical_data())
+        if basket.empty or basket.shape[1] < 2:
+            _logger.warning("Pas assez de ventes POS pour générer des règles d'association.")
+            saved_count = 0
+        else:
+            frequent_itemsets = apriori(
+                basket,
+                min_support=min_support,
+                use_colnames=True,
+            )
+            if frequent_itemsets.empty:
+                saved_count = 0
+            else:
+                rules = association_rules(
+                    frequent_itemsets,
+                    metric="confidence",
+                    min_threshold=min_confidence,
+                )
+                rules = rules[rules['antecedents'].apply(lambda items: len(items) >= 1)]
+                saved_count = self._save_rules_to_odoo(rules)
 
-        # Charger les données
-        df = self._get_historical_data()
-
-        # Nettoyage des données : transformation en transactions binaires
-        basket = self._preprocess_data(df)
-
-        # Générer les itemsets fréquents
-        frequent_itemsets = apriori(basket, min_support=min_support, use_colnames=True)
-
-        # Générer les règles d'association
-        rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=min_confidence)
-
-        # Filtrer les règles intéressantes
-        rules = rules[rules['antecedents'].apply(lambda x: len(x) >= 2)]
-
-        _logger.info(f"Règles générées : {len(rules)}")
-        # 🔽 LOG DES RÈGLES
-        for _, rule in rules.iterrows():
-            antecedents = ', '.join(rule['antecedents'])
-            consequents = ', '.join(rule['consequents'])
-            support = round(rule['support'] * 100, 2)
-            confidence = round(rule['confidence'] * 100, 2)
-            _logger.info(f"Règle : {antecedents} => {consequents} | Support : {support}% | Confiance : {confidence}%")
-
-        # Sauvegarder les règles dans Odoo
-        self._save_rules_to_odoo(rules)
-
-        _logger.info("Fin de la génération des règles d'association")
-        return True
+        _logger.info("Règles d'association enregistrées : %s", saved_count)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': "Règles d'association",
+                'message': f"{saved_count} règle(s) enregistrée(s).",
+                'type': 'success' if saved_count else 'warning',
+                'sticky': False,
+            },
+        }
 
     def _save_rules_to_odoo(self, rules):
-        _logger.info("Début de l'enregistrement des règles dans Odoo.")
-
-        product_association = self.env['product.association']
-        product_association.search([]).unlink()  # Nettoyer les anciennes règles
-        _logger.info("Anciennes règles supprimées.")
-
+        association_model = self.env['product.association']
+        new_values = []
         for _, rule in rules.iterrows():
-            antecedents = list(rule['antecedents'])
-            consequent = list(rule['consequents'])[0]
-
-            # Recherche des produits dans Odoo
-            antecedent_products = self.env['product.product'].search([('name', 'in', antecedents)])
-            associated_product = self.env['product.product'].search([('name', '=', consequent)], limit=1)
-
-            if antecedent_products and associated_product:
-                created = product_association.create({
-                    'antecedent_product_ids': [(6, 0, antecedent_products.ids)],
-                    'associated_product_id': associated_product.id,
-                    'confidence': rule['confidence'] * 100,
-                    'support': rule['support'] * 100,
-                    'card_id': self._get_appropriate_card(antecedents, consequent)
-                })
-
-                antecedent_names = ', '.join(antecedent_products.mapped('name'))
-                _logger.info(
-                    f"Règle enregistrée : {antecedent_names} => {associated_product.name} | "
-                    f"Support : {rule['support'] * 100:.2f}% | Confiance : {rule['confidence'] * 100:.2f}% | "
-                    f"ID association : {created.id}"
+            antecedent_ids = [int(product_id) for product_id in rule['antecedents']]
+            consequent_id = int(next(iter(rule['consequents'])))
+            antecedents = self.env['product.product'].browse(antecedent_ids).exists()
+            associated_product = self.env['product.product'].browse(consequent_id).exists()
+            if len(antecedents) != len(antecedent_ids) or not associated_product:
+                _logger.warning(
+                    "Skipping association rule with missing catalog products: %s => %s",
+                    antecedent_ids,
+                    consequent_id,
                 )
-            else:
-                _logger.warning(f"Produits non trouvés pour la règle : {antecedents} => {consequent}")
+                continue
+            if associated_product in antecedents:
+                continue
 
-        _logger.info("Fin de l'enregistrement des règles.")
+            new_values.append({
+                'antecedent_product_ids': [(6, 0, antecedents.ids)],
+                'associated_product_id': associated_product.id,
+                'confidence': rule['confidence'] * 100,
+                'support': rule['support'] * 100,
+                'card_id': self._get_appropriate_card(antecedents | associated_product),
+            })
 
-    def _get_appropriate_card(self, antecedents, consequent):
-        product_names = antecedents + [consequent]
+        if not new_values:
+            return 0
 
-        if 'café' in product_names or 'lait' in product_names:
-            card = self.env['cartes.reduction'].search([('name', '=', 'card_coffee_addict')], limit=1)
-            return card.id if card else False
+        created_rules = association_model.create(new_values)
+        association_model.search([('id', 'not in', created_rules.ids)]).unlink()
+        return len(created_rules)
 
+    def _get_appropriate_card(self, products):
+        names = " ".join(products.mapped('name')).casefold()
+        if "café" in names or "cafe" in names or "lait" in names:
+            card = self.env['cartes.reduction'].search([
+                ('name', '=', 'card_coffee_addict'),
+            ], limit=1)
+            return card.id
         return False
-

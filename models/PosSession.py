@@ -1,20 +1,40 @@
-from odoo import models , api, fields
-import logging
-
-_logger = logging.getLogger(__name__)
+from odoo import models, fields
 class PosSession(models.Model):
     _inherit = 'pos.session'
 
     def _pos_ui_models_to_load(self):
         result = super()._pos_ui_models_to_load()
-        result.extend(['cartes.attribution', 'cartes.reduction', 'loyalty.program', 'loyalty.reward','product.pricelist','res.partner','product.association'])
+        for model_name in [
+            'cartes.attribution',
+            'cartes.reduction',
+            'loyalty.program',
+            'loyalty.reward',
+            'loyalty.card',
+            'product.pricelist',
+            'res.partner',
+            'product.association',
+        ]:
+            if model_name not in result:
+                result.append(model_name)
         return result
 
     def _loader_params_cartes_attribution(self):
         return {
             'search_params': {
-                'domain': [('state', 'in', ['validated', 'renouvelé'])],
-                 'fields': ['client_id', 'carte_ids','loyalty_program_id','date_attribution' , 'date_expiration','state'],
+                'domain': [
+                    ('state', 'in', ['validated', 'renouvelé']),
+                    '|',
+                    ('date_expiration', '=', False),
+                    ('date_expiration', '>=', fields.Date.context_today(self)),
+                ],
+                'fields': [
+                    'client_id',
+                    'carte_ids',
+                    'loyalty_program_id',
+                    'date_attribution',
+                    'date_expiration',
+                    'state',
+                ],
             },
         }
 
@@ -53,6 +73,28 @@ class PosSession(models.Model):
     def _get_pos_ui_loyalty_program(self, params):
         return self.env['loyalty.program'].search_read(**params['search_params'])
 
+    def _loader_params_loyalty_card(self):
+        return {
+            'search_params': {
+                'domain': [
+                    ('program_id.program_type', '=', 'loyalty'),
+                    '|',
+                    ('expiration_date', '=', False),
+                    ('expiration_date', '>=', fields.Date.context_today(self)),
+                ],
+                'fields': [
+                    'code',
+                    'partner_id',
+                    'program_id',
+                    'points',
+                    'expiration_date',
+                ],
+            },
+        }
+
+    def _get_pos_ui_loyalty_card(self, params):
+        return self.env['loyalty.card'].search_read(**params['search_params'])
+
     def _loader_params_product_association(self):
         return {
             'search_params': {
@@ -69,32 +111,21 @@ class PosSession(models.Model):
 class PosOrder(models.Model):
     _inherit = 'pos.order'
 
+    loyalty_points_processed = fields.Boolean(default=False, copy=False, readonly=True)
+
     def _process_order(self, order, draft, existing_order):
-
-        # Appel à la méthode parente d'abord
         res = super()._process_order(order, draft, existing_order)
-
-        # Récupération de l'ID du partenaire depuis les données de la commande
-        partner_id = order.get('partner_id', False)
-        if not partner_id:
+        if self.env.context.get("skip_card_eval") or draft or not res:
             return res
 
-        try:
-            partner = self.env['res.partner'].browse(partner_id)
-
-            # Mise à jour des stats client
-            partner._compute_purchase_stats()
-            partner._compute_customer_segment()
-
-            # Prédictions ML
-            partner.update_behavior_analysis()
-            partner._predict_ml_metrics()
-
-            # Application des règles
-            self.env['promotion.rule'].apply_rules(partner)
-
-        except Exception as e:
-            _logger.error(f"Error processing POS order for partner {partner_id}: {str(e)}")
+        pos_order = self.browse(res).exists()
+        if pos_order and pos_order.partner_id:
+            pos_order.partner_id._process_card_purchase(pos_order)
+            pos_order.partner_id._compute_purchase_stats()
+            pos_order.partner_id._compute_customer_segment()
+            self.env['promotion.rule'].apply_rules(pos_order.partner_id)
+            if pos_order.state == "invoiced" and pos_order.account_move:
+                pos_order.account_move._send_cartes_invoice_email()
 
         return res
 

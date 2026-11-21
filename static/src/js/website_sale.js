@@ -91,7 +91,14 @@ publicWidget.registry.CartLoyaltyManager = publicWidget.Widget.extend({
     },
 
     _showSuggestionConfirm: function(suggestion) {
-        const message = ` Ajoutez "${suggestion.product_name}" pour bénéficier de la carte "${suggestion.card_name}" liée au programme "${suggestion.loyalty_program_name}"  offrant une remise de ${suggestion.reward_discount}% ?`;
+        const discount = Number(suggestion.reward_discount);
+        const hasLinkedReward = suggestion.card_name
+            && suggestion.loyalty_program_name
+            && Number.isFinite(discount)
+            && discount > 0;
+        const message = hasLinkedReward
+            ? `Ajoutez "${suggestion.product_name}" pour bénéficier de la carte "${suggestion.card_name}" liée au programme "${suggestion.loyalty_program_name}" offrant une remise de ${discount}% ?`
+            : `Ajoutez "${suggestion.product_name}" à votre panier ?`;
         if (window.confirm(message)) {
             this._applySuggestion(suggestion.rule_id);
         }

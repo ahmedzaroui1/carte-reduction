@@ -35,18 +35,6 @@
             <field name="context">{}</field>
         </record>
 
-        <!-- Action pour afficher et créer un nouvel enregistrement de règles de tarification -->
-        <record id="action_product_pricelist" model="ir.actions.act_window">
-            <field name="name">Règles de Tarification et Réductions</field>
-            <field name="res_model">product.pricelist</field>
-            <field name="view_mode">form</field>
-            <field name="view_id" ref="product_pricelist_view_inherit_cartes_reduction"/>
-            <field name="target">current</field>
-            <field name="context">
-                {"default_state": "draft", "default_carte_reduction_id": False} <!-- Valeurs par défaut pour un nouvel enregistrement -->
-            </field>
-        </record>
-
         <!-- Héritage de la vue Form de Product Pricelist pour ajouter les cartes de réduction -->
         <record id="product_pricelist_view_inherit_cartes_reduction" model="ir.ui.view">
             <field name="name">product.pricelist.form.inherit.cartes.reduction</field>
@@ -73,6 +61,18 @@
                         </group>
                     </page>
                 </notebook>
+            </field>
+        </record>
+
+        <!-- Action pour afficher et créer un nouvel enregistrement de règles de tarification -->
+        <record id="action_product_pricelist" model="ir.actions.act_window">
+            <field name="name">Règles de Tarification et Réductions</field>
+            <field name="res_model">product.pricelist</field>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="product_pricelist_view_inherit_cartes_reduction"/>
+            <field name="target">current</field>
+            <field name="context">
+                {"default_state": "draft", "default_carte_reduction_id": False} <!-- Valeurs par défaut pour un nouvel enregistrement -->
             </field>
         </record>
 

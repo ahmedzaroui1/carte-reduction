@@ -12,7 +12,7 @@ class Website(models.Model):
 
         return self.env['cartes.attribution'].search([
             ('client_id', '=', partner.id),
-            ('state', '=', 'validated')
+            ('state', 'in', ['validated', 'renouvelé'])
         ]).mapped('carte_ids')
 
     def _loader_params_product_association(self):

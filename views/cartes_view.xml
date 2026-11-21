@@ -15,6 +15,10 @@
                     <!-- Remise de bienvenue -->
                     <field name="discount" string="Remise de Bienvenue (%)"/>
 
+                    <field name="date_debut"/>
+                    <field name="date_expiration"/>
+                    <field name="is_vip"/>
+
                     <!-- Logo de la Carte -->
                     <field name="logo" string="Logo de la Carte"/>
 
@@ -31,6 +35,44 @@
 
         </form>
     </field>
+</record>
+
+<record id="view_form_carte_condition" model="ir.ui.view">
+    <field name="name">cartes.conditions.form</field>
+    <field name="model">cartes.conditions</field>
+    <field name="arch" type="xml">
+        <form string="Condition d'Obtention">
+            <sheet>
+                <group>
+                    <field name="name"/>
+                    <field name="description"/>
+                    <field name="min_amount"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="min_points"/>
+                    <field name="active"/>
+                </group>
+            </sheet>
+        </form>
+    </field>
+</record>
+
+<record id="view_tree_carte_condition" model="ir.ui.view">
+    <field name="name">cartes.conditions.tree</field>
+    <field name="model">cartes.conditions</field>
+    <field name="arch" type="xml">
+        <tree string="Conditions d'Obtention">
+            <field name="name"/>
+            <field name="min_amount"/>
+            <field name="min_points"/>
+            <field name="active"/>
+        </tree>
+    </field>
+</record>
+
+<record id="action_lister_conditions" model="ir.actions.act_window">
+    <field name="name">Conditions d'Obtention</field>
+    <field name="res_model">cartes.conditions</field>
+    <field name="view_mode">tree,form</field>
 </record>
 
 <!-- Action pour ouvrir le formulaire -->
@@ -80,6 +122,7 @@
     <field name="arch" type="xml">
         <form string="Attribuer une Carte">
             <header>
+                <button name="action_attribuer" string="Attribuer" type="object" class="btn-primary" invisible="state != 'draft'"/>
                 <button name="action_cartes_attribution_list" type="object" string="Liste des clients" class="oe_highlight"/>
             </header>
             <sheet>
@@ -107,7 +150,6 @@
 
                 <!-- Boutons -->
                 <footer>
-                    <button string="Attribuer" type="object" name="action_attribuer" class="btn-primary"/>
                     <button string="Annuler" class="btn-secondary" special="cancel"/>
                 </footer>
             </sheet>

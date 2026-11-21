@@ -41,8 +41,8 @@ export class CreateButton extends Component {
 
         const htmlBestCard = `
             <p><strong>Carte sélectionnée :</strong> ${bestCard.card_name}</p>
-            <p><strong>Remise totale :</strong> ${bestCard.total_discount} DTN</p>
-            <p><strong>Programme utilisé :</strong> ${bestCard.program_used.program_name} — <strong>${bestCard.program_used.reward_type === 'specific' ? bestCard.total_discount + ' DTN' : bestCard.program_used.reward_discount + '%'}</strong></p>
+            <p><strong>Remise totale :</strong> ${bestCard.total_discount} TND</p>
+            <p><strong>Programme utilisé :</strong> ${bestCard.program_used.program_name} — <strong>${bestCard.program_used.reward_type === 'specific' ? bestCard.total_discount + ' TND' : bestCard.program_used.reward_discount + '%'}</strong></p>
             <hr/>
             <p style="font-size: 0.9em; color: #666;">Cliquez sur "Voir toutes les cartes" pour afficher les autres cartes disponibles.</p>
         `;
@@ -109,7 +109,67 @@ export class CreateButton extends Component {
 
 }
 
+export class VerifyCardOtpButton extends Component {
+    static template = "point_of_sale.VerifyCardOtpButton";
+
+    setup() {
+        this.pos = usePos();
+        this.popup = useService("popup");
+        this.orm = useService("orm");
+    }
+
+    async onClick() {
+        const partner = this.pos.get_order()?.get_partner();
+        if (!partner) {
+            await this.popup.add(CustomAlertPopup, {
+                title: _t("Aucun client"),
+                body: _t("Sélectionnez un client avant de vérifier son identité."),
+            });
+            return;
+        }
+
+        try {
+            const challenge = await this.orm.call(
+                "res.partner",
+                "action_send_pos_otp",
+                [[partner.id]]
+            );
+            const countdown = Math.max(
+                0,
+                challenge.expires_epoch - Math.floor(Date.now() / 1000)
+            );
+            const codeOrQr = await this.popup.add(CustomAlertPopup, {
+                title: _t("Vérification du client"),
+                body: _t("Un code de 6 chiffres a été envoyé au client par e-mail."),
+                otpMode: true,
+                confirmText: _t("Vérifier"),
+                countdown,
+            });
+            if (!codeOrQr) {
+                return;
+            }
+            const result = await this.orm.call(
+                "res.partner",
+                "verify_pos_otp_or_qr",
+                [[partner.id], codeOrQr]
+            );
+            await this.popup.add(CustomAlertPopup, {
+                title: result.success ? _t("Client vérifié") : _t("Échec de vérification"),
+                body: result.message,
+            });
+        } catch (error) {
+            await this.popup.add(CustomAlertPopup, {
+                title: _t("Vérification impossible"),
+                body: error.message || _t("Une erreur est survenue pendant la vérification."),
+            });
+        }
+    }
+}
+
 /** Add the OrderlineProductCreateButton component to the control buttons in ProductScreen. */
 ProductScreen.addControlButton({
     component: CreateButton,
+});
+ProductScreen.addControlButton({
+    component: VerifyCardOtpButton,
 });

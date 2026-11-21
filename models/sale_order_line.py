@@ -78,9 +78,8 @@ class SaleOrderLine(models.Model):
 
         return result
 
-    def _compute_price(self):
+    def _apply_card_loyalty_discount(self):
         for line in self:
-
             if any(
                     line.loyalty_reward_id and
                     line.loyalty_reward_id.reward_type == 'order'
@@ -90,19 +89,30 @@ class SaleOrderLine(models.Model):
 
             # Logique normale pour les remises spécifiques
             if line.reward_id and line.reward_id.is_global_discount:
-                line.update({
+                values = {
                     'discount': 0,
                     'price_unit': line.product_id.list_price
-                })
+                }
             else:
                 loyalty_info = line._get_loyalty_info()
                 if loyalty_info.get('max_discount', 0) > 0:
-                    line.update({
+                    values = {
                         'discount': loyalty_info['max_discount'],
-                        'price_unit': line.product_id.list_price
-                    })
+                        'price_unit': line.product_id.list_price,
+                        'loyalty_reward_id': loyalty_info['best_reward'].id,
+                    }
                 else:
-                    super(SaleOrderLine, line)._compute_price()
+                    continue
+            values = {
+                field: value
+                for field, value in values.items()
+                if (
+                    line[field].id if line._fields[field].type == 'many2one'
+                    else line[field]
+                ) != value
+            }
+            if values:
+                line.update(values)
 #mtee3 site web toufa hne
     is_loyalty_line = fields.Boolean(
         string="Ligne de fidélité",

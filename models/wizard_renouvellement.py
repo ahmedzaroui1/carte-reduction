@@ -13,4 +13,8 @@ class WizardRenouvellementCarte(models.TransientModel):
     def action_renouveler(self):
         """ Met à jour la carte avec la nouvelle date d'expiration """
         if self.attribution_id:
-            self.attribution_id.write({'date_expiration': self.date_expiration, 'state': 'renouvelé'})
+            self.attribution_id.write({
+                'date_attribution': fields.Date.context_today(self),
+                'date_expiration': self.date_expiration,
+                'state': 'renouvelé',
+            })

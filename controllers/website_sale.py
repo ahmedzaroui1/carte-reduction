@@ -130,23 +130,32 @@ class LoyaltyCartController(http.Controller):
             if not product_ids:
                 return {'success': False, 'suggestions': []}
 
-            rules = request.env['product.association'].search([
-                ('antecedent_product_ids', 'in', product_ids),
-                ('associated_product_id', '!=', False)
+            order = request.website.sale_get_order()
+            if not order:
+                return {'success': False, 'suggestions': []}
+
+            cart_product_ids = order.order_line.filtered(
+                lambda line: not line.is_reward_line
+            ).product_id.ids
+            rules = request.env['product.association'].sudo().search([
+                ('antecedent_product_ids', 'in', cart_product_ids),
+                ('associated_product_id.product_tmpl_id.website_published', '=', True)
             ])
 
             suggestions = []
             for rule in rules:
                 antecedent_ids = rule.antecedent_product_ids.ids
-                if all(pid in product_ids for pid in antecedent_ids):
-                    if rule.associated_product_id.id not in product_ids:
+                if all(pid in cart_product_ids for pid in antecedent_ids):
+                    if rule.associated_product_id.id not in cart_product_ids:
+                        program = rule.card_id.loyalty_program_id if rule.card_id else False
+                        reward = program.reward_ids[:1] if program else False
                         suggestions.append({
                             'rule_id': rule.id,
                             'product_id': rule.associated_product_id.id,
                             'product_name': rule.associated_product_id.name,
                             'card_name': rule.card_id.name if rule.card_id else '',
-                            'loyalty_program_name': rule.card_id.loyalty_program_id.name if rule.card_id.loyalty_program_id.name else '',
-                            'reward_discount': rule.card_id.loyalty_program_id.reward_ids.discount if rule.card_id.loyalty_program_id.reward_ids.discount else None,
+                            'loyalty_program_name': program.name if program else '',
+                            'reward_discount': reward.discount if reward else None,
                         })
 
             return {'success': True, 'suggestions': suggestions}
@@ -159,12 +168,21 @@ class LoyaltyCartController(http.Controller):
     def apply_product_suggestion(self, rule_id, **kw):
         """Applique uniquement le discount de la suggestion"""
         try:
-            rule = request.env['product.association'].browse(int(rule_id))
+            rule = request.env['product.association'].sudo().browse(int(rule_id))
             if not rule.exists():
                 return {'success': False}
 
             order = request.website.sale_get_order()
             if not order:
+                return {'success': False}
+
+            cart_product_ids = order.order_line.filtered(
+                lambda line: not line.is_reward_line
+            ).product_id.ids
+            if (
+                not rule.associated_product_id.product_tmpl_id.website_published
+                or not all(pid in cart_product_ids for pid in rule.antecedent_product_ids.ids)
+            ):
                 return {'success': False}
 
             # 1. Ajout du produit

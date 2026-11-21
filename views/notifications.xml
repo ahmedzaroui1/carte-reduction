@@ -14,6 +14,8 @@
             <field name="name"/>
             <field name="client_id"/>
             <field name="date"/>
+            <field name="notification_type"/>
+            <field name="is_read"/>
         </tree>
     </field>
 </record>
@@ -28,6 +30,8 @@
                 <field name="message"/>
                 <field name="client_id"/>
                 <field name="date"/>
+                <field name="notification_type"/>
+                <field name="is_read"/>
             </group>
         </form>
     </field>

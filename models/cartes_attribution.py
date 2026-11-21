@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
@@ -37,7 +37,50 @@ class AttributionCarte(models.Model):
     # Champs relatifs à l'attribution de carte
     carte_ids = fields.Many2many('cartes.reduction', string="Cartes de Réduction", required=True)
     date_attribution = fields.Date(string="Date d'Attribution", default=fields.Date.context_today)
-    date_expiration = fields.Date(string="Date d'Expiration", required=True)
+    date_expiration = fields.Date(
+        string="Date d'Expiration",
+        required=True,
+        default=lambda self: fields.Date.context_today(self) + timedelta(days=365),
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for record in records:
+            values = record._get_card_default_values()
+            if values:
+                record.with_context(skip_card_eval=True).write(values)
+        return records
+
+    def _get_card_default_values(self):
+        self.ensure_one()
+        start_dates = [value for value in self.carte_ids.mapped("date_debut") if value]
+        expiration_dates = [value for value in self.carte_ids.mapped("date_expiration") if value]
+        programs = self.carte_ids.mapped("loyalty_program_id")
+        values = {}
+        if start_dates:
+            values["date_attribution"] = min(start_dates)
+        if expiration_dates:
+            values["date_expiration"] = max(expiration_dates)
+        if programs:
+            values["loyalty_program_id"] = [(6, 0, programs.ids)]
+        return values
+
+    @api.onchange("carte_ids")
+    def _onchange_carte_ids(self):
+        for record in self:
+            existing_card_ids = record._origin.carte_ids.ids
+            for card in record.carte_ids:
+                if (
+                    card.id not in existing_card_ids
+                    and card.nombre_utilisateurs >= card.nombre_utilisateurs_max
+                ):
+                    raise UserError(
+                        "Le nombre d'utilisateurs autorisés pour cette carte a été atteint."
+                    )
+            values = record._get_card_default_values()
+            if values:
+                record.update(values)
 
     def renouveler_carte(self):
         """Renouvelle les cartes attribuées à un client"""
@@ -59,15 +102,6 @@ class AttributionCarte(models.Model):
                 })
 
             record.write({'date_expiration': max(record.carte_ids.mapped('date_expiration'))})
-    @api.onchange('carte_ids')
-    def _check_nombre_utilisateurs(self):
-        """ Vérifie si le nombre d'utilisateurs n'a pas dépassé la limite. """
-        for carte in self.carte_ids:
-            if carte.nombre_utilisateurs >= carte.nombre_utilisateurs_max:
-                raise UserError("Le nombre d'utilisateurs autorisés pour cette carte a été atteint.")
-            else:
-                carte.nombre_utilisateurs += 1
-
     @api.onchange('date_attribution', 'date_expiration')
     def _check_dates(self):
         """ Vérifie si la date d'expiration est postérieure à la date d'attribution. """
@@ -77,8 +111,28 @@ class AttributionCarte(models.Model):
     def action_attribuer(self):
         """ Méthode pour effectuer l'attribution de carte. """
         for record in self:
-            record.write({'state': 'attribué'})  # Exemple d'une mise à jour d'état
-
+            if not record.date_expiration:
+                raise ValidationError("Veuillez définir une date d'expiration pour la carte.")
+            newly_assigned = record.state not in ("validated", "renouvelé")
+            if newly_assigned:
+                for card in record.carte_ids:
+                    if card.nombre_utilisateurs >= card.nombre_utilisateurs_max:
+                        raise ValidationError(
+                            "Le nombre d'utilisateurs autorisés pour cette carte a été atteint."
+                        )
+            record.with_context(skip_card_eval=True).write({"state": "validated"})
+            if newly_assigned:
+                for card in record.carte_ids:
+                    card.with_context(skip_card_eval=True).write({
+                        "nombre_utilisateurs": card.nombre_utilisateurs + 1,
+                    })
+            vip_cards = record.carte_ids.filtered("is_vip")
+            if newly_assigned and vip_cards:
+                record.client_id._send_vip_notification(
+                    record.client_id,
+                    vip_cards[:1],
+                    create_attribution=False,
+                )
 
 
     @api.depends('client_id', 'carte_ids')
@@ -89,12 +143,14 @@ class AttributionCarte(models.Model):
 
     display_name = fields.Char(compute="_compute_display_name", store=True)
 
-    @api.model
     def action_renouveler(self):
         for record in self:
-            # Mettez à jour la date d'expiration
-            record.date_expiration = fields.Date.today() + timedelta(days=365)  # Par exemple, ajouter 1 an
-            record.state = 'active'  # Changez l'état de la carte à active
+            today = fields.Date.context_today(record)
+            record.with_context(skip_card_eval=True).write({
+                "date_attribution": today,
+                "date_expiration": today + timedelta(days=365),
+                "state": "renouvelé",
+            })
 
     @api.depends('date_expiration')
     def _compute_message(self):
@@ -121,7 +177,7 @@ class AttributionCarte(models.Model):
         """Méthode appelée par le cron pour vérifier les cartes expirées"""
         expired_cards = self.search([
             ('date_expiration', '<', fields.Date.today()),
-            ('state', '=', 'validated')
+            ('state', 'in', ['validated', 'renouvelé'])
         ])
         expired_cards._notify_expired_cards()
 
@@ -131,13 +187,14 @@ class AttributionCarte(models.Model):
         Notification = self.env['notifications.client']
 
         for card in self:
+            card_names = ", ".join(card.carte_ids.mapped("name"))
             # Envoyer l'email
             mail_values = {
-                'subject': f"Votre carte {card.carte_ids.name} est expirée",
+                'subject': f"Votre carte {card_names} est expirée",
                 'body_html': f"""
                     <div>
                         <p>Bonjour {card.client_id.name},</p>
-                        <p>Votre carte {card.carte_ids.name} est expirée depuis le {card.date_expiration}.</p>
+                        <p>Votre carte {card_names} est expirée depuis le {card.date_expiration}.</p>
                         <p>Pour renouveler, contactez notre service client.</p>
                         <p>Cordialement,<br/>L'équipe {self.env.company.name}</p>
                     </div>
@@ -145,18 +202,20 @@ class AttributionCarte(models.Model):
                 'email_to': card.client_id.email,
                 'email_from': self.env.user.email,
             }
-            mail = Mail.create(mail_values)
-            mail.send()
+            if card.client_id.email:
+                mail = Mail.with_context(skip_card_eval=True).create(mail_values)
+                mail.send()
 
             # Créer la notification
-            Notification.create({
-                'name': f"Carte {card.carte_ids.name} expirée",
+            Notification.with_context(skip_card_eval=True).create({
+                'name': f"Carte {card_names} expirée",
                 'message': f"Notification envoyée à {card.client_id.email}",
                 'client_id': card.client_id.id,
                 'date': fields.Datetime.now(),
+                'notification_type': 'expired_card',
             })
 
             # Mettre à jour le statut
-            card.write({'state': 'expired'})
+            card.with_context(skip_card_eval=True).write({'state': 'expired'})
 
     #hedhi mtee3 gift card

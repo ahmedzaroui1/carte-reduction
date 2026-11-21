@@ -21,6 +21,7 @@ from . import partner
 from . import wizard_renouvellement
 from . import PosSession
 from . import sale_order
+from . import account_move
 from . import RewardSelectionWizard
 from . import website
 from . import sale_order_line

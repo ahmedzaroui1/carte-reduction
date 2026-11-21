@@ -19,6 +19,13 @@
            <field name="view_id" ref="my_custom_gift_ewallet_view_form"/>
         </record>
 
+<record id="action_points_loyalty_cards" model="ir.actions.act_window">
+       <field name="name">Soldes de Points Clients</field>
+       <field name="res_model">loyalty.card</field>
+       <field name="view_mode">tree,form</field>
+       <field name="domain">[('program_id.program_type', '=', 'loyalty')]</field>
+</record>
+
 <record id="action_loyalty_program_view_tree" model="ir.actions.act_window">
     <field name="name">Loyalty Program</field>
     <field name="res_model">loyalty.program</field>

@@ -9,6 +9,7 @@
     <menuitem id="menu_gestion_cartes" name="Gestion des Cartes" parent="menu_cartes_reduction" sequence="10"/>
     <menuitem id="menu_creer_carte" name="Créer une nouvelle carte" parent="menu_gestion_cartes" action="action_creer_carte" sequence="10"/>
     <menuitem id="menu_lister_cartes" name="Lister les cartes disponibles" parent="menu_gestion_cartes" action="action_lister_cartes" sequence="20"/>
+    <menuitem id="menu_lister_conditions" name="Conditions d'obtention" parent="menu_gestion_cartes" action="action_lister_conditions" sequence="25"/>
     <menuitem id="menu_attribuer_carte" name="Attribuer une carte à un client" parent="menu_gestion_cartes" action="action_cartes_attribution_list" sequence="30"/>
     <menuitem id="menu_renouveler_carte" name="Renouveler une carte expirée" parent="menu_gestion_cartes" action="action_renouveler_carte" sequence="40"/>
 
@@ -16,12 +17,14 @@
     <menuitem id="menu_promotions" name="Gestion des Promo" parent="menu_cartes_reduction" sequence="20"/>
     <menuitem id="menu_ajouter_promotion" name="Ajouter une promotion" parent="menu_promotions" action="action_loyalty_program" sequence="10"/>
     <menuitem id="menu_gestion_reductions" name="Associations de Produits" parent="menu_promotions" action="action_product_association"  sequence="20"/>
-    <menuitem id="menu_promotions_en_cours" name="Voir les promotions en cours" parent="menu_promotions" action="action_product_pricelist_item_tree" sequence="30"/>
-    <menuitem id="menu_planifier_promotions" name="Planifier des promotions futures" parent="menu_promotions" action="action_product_pricelist" sequence="40"/>
+    <menuitem id="menu_custom_promotions" name="Gérer les promotions personnalisées" parent="menu_promotions" action="action_gestion_reductions" sequence="25"/>
+    <menuitem id="menu_promotions_en_cours" name="Voir les promotions en cours" parent="menu_promotions" action="action_promotions_en_cours" sequence="30"/>
+    <menuitem id="menu_planifier_promotions" name="Planifier des promotions futures" parent="menu_promotions" action="action_planifier_promotions" sequence="40"/>
 
     <!-- Menu Fidélité Clients -->
     <menuitem id="menu_fidelite_clients" name="Fidélité Clients" parent="menu_cartes_reduction" sequence="30"/>
     <menuitem id="menu_gestion_points" name="Gérer les points de fidélité" parent="menu_fidelite_clients" action="action_gestion_points" sequence="10"/>
+    <menuitem id="menu_points_loyalty_cards" name="Soldes de Points Clients" parent="menu_fidelite_clients" action="action_points_loyalty_cards" sequence="15"/>
     <menuitem id="menu_consulter_historique_achats" name="liste des cartes" parent="menu_fidelite_clients" action="action_loyalty_program_view_tree" sequence="20"/>
     <menuitem id="menu_echanger_points" name="generer les regles" parent="menu_fidelite_clients" action="action_product_association_generator" sequence="30"/>
     <menuitem id="menu_identification_vip" name="Identifier les clients VIP" parent="menu_fidelite_clients" action="action_partner_vip" sequence="40"/>

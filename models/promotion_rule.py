@@ -87,6 +87,15 @@ class PromotionRule(models.Model):
         string="Points à Attribuer"
     )
 
+    points_awarded_partner_ids = fields.Many2many(
+        "res.partner",
+        "promotion_rule_points_partner_rel",
+        "rule_id",
+        "partner_id",
+        string="Clients ayant reçu les points",
+        copy=False,
+    )
+
     free_product_id = fields.Many2one(
         'product.product',
         string="Produit Gratuit"
@@ -189,6 +198,28 @@ class PromotionRule(models.Model):
             f"Carte cadeau {self.gift_card_template_id.name}",
             f"Vous avez reçu une carte cadeau {self.gift_card_template_id.name}!"
         )
+
+    def _apply_loyalty_points(self, partner):
+        self.ensure_one()
+        if partner in self.points_awarded_partner_ids:
+            return
+        if self.loyalty_points <= 0:
+            raise UserError("Le nombre de points à attribuer doit être positif.")
+
+        loyalty_card = partner._get_or_create_points_card()
+        loyalty_card.with_context(skip_card_eval=True).write({
+            "points": loyalty_card.points + self.loyalty_points,
+        })
+        self.with_context(skip_card_eval=True).write({
+            "points_awarded_partner_ids": [(4, partner.id)],
+        })
+        partner._send_card_lifecycle_notification(
+            loyalty_card,
+            "points_awarded",
+            f"{self.loyalty_points} points fidélité attribués",
+            f"La promotion « {self.name} » vous a attribué {self.loyalty_points} points.",
+        )
+        partner._evaluate_next_card_tier()
 
     # =====================
     #  MÉTHODES UTILITAIRES

@@ -7,13 +7,20 @@
             </div>
             <div class="modal-body">
                 <t t-raw="props.body"/>
+                <t t-if="props.otpMode">
+                    <label class="form-label" for="pos-card-otp">Code à 6 chiffres ou contenu du QR</label>
+                    <input id="pos-card-otp" class="form-control" t-model="state.otp"
+                           autocomplete="one-time-code"/>
+                    <p class="mt-2 text-muted">Expiration dans <t t-esc="state.remaining"/> s.</p>
+                </t>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" t-on-click="cancel">
                     <t t-esc="props.cancelText || 'Cancel'"/>
                 </button>
-                <button type="button" class="btn btn-primary" t-on-click="confirm">
-                    <t t-esc="props.confirmText || 'Ok'"/>
+                <button type="button" class="btn btn-primary" t-on-click="confirm"
+                        t-att-disabled="props.otpMode &amp;&amp; !state.remaining">
+                    <t t-esc="props.otpMode ? (props.confirmText || 'Vérifier') : (props.confirmText || 'Ok')"/>
                 </button>
             </div>
         </div>

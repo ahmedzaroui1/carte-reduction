@@ -1,0 +1,161 @@
+<odoo>
+    <template id="portal_my_home_discount_cards" inherit_id="portal.portal_my_home">
+        <xpath expr="//div[@id='portal_common_category']" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/portal/static/src/img/portal-connection.svg'"/>
+                <t t-set="title">Mes cartes de réduction</t>
+                <t t-set="text">Consultez vos cartes, promotions et conditions de fidélité.</t>
+                <t t-set="url" t-value="'/my/cartes'"/>
+                <t t-set="config_card" t-value="True"/>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="portal_discount_cards" name="Mes cartes de réduction">
+        <t t-call="portal.portal_layout">
+            <t t-set="title">Mes cartes de réduction</t>
+            <div class="container py-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                    <div>
+                        <h2 class="mb-1">Mon portefeuille fidélité</h2>
+                        <p class="text-muted mb-0">Cartes, points et avantages personnalisés.</p>
+                    </div>
+                    <div class="loyalty-points-balance">
+                        <span class="text-muted">Solde actif</span>
+                        <strong><span t-esc="points_balance"/> points</strong>
+                    </div>
+                </div>
+
+                <div t-if="cards" class="row g-3">
+                    <t t-foreach="attributions" t-as="attribution">
+                        <t t-foreach="attribution.carte_ids.filtered('active')" t-as="card">
+                            <div class="col-md-6">
+                                <div t-attf-class="loyalty-digital-pass loyalty-digital-pass--#{card.carte_type}">
+                                    <div class="loyalty-digital-pass__topline">
+                                        <span>CARTE FIDÉLITÉ</span>
+                                        <span t-esc="card.carte_type.upper()"/>
+                                    </div>
+                                    <h3 t-esc="card.name"/>
+                                    <div class="loyalty-digital-pass__discount">
+                                        <span t-esc="card.discount"/>%
+                                        <small>de remise</small>
+                                    </div>
+                                    <div class="loyalty-digital-pass__details">
+                                        <span>Expire le</span>
+                                        <strong t-field="attribution.date_expiration"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+                <p t-else="">Vous n'avez pas de carte active pour le moment.</p>
+
+                <section t-if="promotions" class="mt-4">
+                    <h2 class="h4">Mes promotions</h2>
+                    <ul class="list-group">
+                        <li t-foreach="promotions" t-as="promotion" class="list-group-item">
+                            <strong t-esc="promotion.name"/>
+                            <span t-if="promotion.discount"> — <span t-esc="promotion.discount"/>%</span>
+                            <span t-if="promotion.date_expiration">
+                                — jusqu'au <span t-field="promotion.date_expiration"/>
+                            </span>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="mt-4">
+                    <h2 class="h4">Progression des niveaux</h2>
+                    <p class="text-muted">Dépenses du mois : <strong><span t-esc="'%.2f' % monthly_spend"/> TND</strong></p>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h3 class="h5">Silver — 10%</h3>
+                            <label class="form-label">Dépenses : 300 TND</label>
+                            <div class="progress mb-2" role="progressbar" aria-label="Progression des dépenses Silver">
+                                <div class="progress-bar bg-secondary" t-attf-style="width: {{ progress['silver_spend'] }}%"/>
+                            </div>
+                            <label class="form-label">Points : 600</label>
+                            <div class="progress" role="progressbar" aria-label="Progression des points Silver">
+                                <div class="progress-bar bg-secondary" t-attf-style="width: {{ progress['silver_points'] }}%"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="h5">Gold VIP — 15%</h3>
+                            <label class="form-label">Dépenses : 1 000 TND</label>
+                            <div class="progress mb-2" role="progressbar" aria-label="Progression des dépenses Gold">
+                                <div class="progress-bar bg-warning" t-attf-style="width: {{ progress['gold_spend'] }}%"/>
+                            </div>
+                            <label class="form-label">Points : 1 500</label>
+                            <div class="progress" role="progressbar" aria-label="Progression des points Gold">
+                                <div class="progress-bar bg-warning" t-attf-style="width: {{ progress['gold_points'] }}%"/>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section t-if="next_tiers" class="mt-4">
+                    <h2 class="h4">Conditions pour le prochain niveau</h2>
+                    <div t-foreach="next_tiers" t-as="tier" class="card mb-3">
+                        <div class="card-body">
+                            <h3 class="h5" t-esc="tier['card'].name"/>
+                            <p t-if="tier['eligible']" class="text-success">
+                                Vous remplissez les conditions de ce niveau.
+                            </p>
+                            <ul class="mb-0">
+                                <li t-foreach="tier['conditions']" t-as="condition">
+                                    <strong t-esc="condition.name"/>
+                                    <span t-if="condition.min_amount">
+                                        — achats du mois : au moins
+                                        <span t-esc="condition.min_amount"/>
+                                        <span t-esc="condition.currency_id.symbol"/>
+                                    </span>
+                                    <span t-if="condition.min_points">
+                                        — au moins <span t-esc="condition.min_points"/> points
+                                    </span>
+                                    <span t-if="condition.description">
+                                        — <span t-esc="condition.description"/>
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="mt-4">
+                    <h2 class="h4">Vérification en magasin</h2>
+                    <p>Générez un code à usage unique valable 60 secondes pour le passage en caisse.</p>
+                    <form action="/my/cartes/otp" method="post">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <button class="btn btn-primary" type="submit">Générer mon code POS</button>
+                    </form>
+                    <div t-if="otp_code" class="card mt-3">
+                        <div class="card-body d-flex flex-wrap align-items-center gap-4">
+                            <div>
+                                <h3 class="h5">Votre code</h3>
+                                <p class="loyalty-live-otp mb-1"><strong t-esc="otp_code"/></p>
+                                <span class="text-muted">
+                                    Expire dans <strong data-otp-countdown="" t-att-data-expires="otp_expires_epoch">60</strong> s
+                                </span>
+                            </div>
+                            <img t-att-src="otp_qr_data_uri" alt="QR code signé de vérification POS"
+                                 width="160" height="160" class="img-thumbnail"/>
+                        </div>
+                    </div>
+                </section>
+
+                <section t-if="unread_notifications" class="mt-4">
+                    <h2 class="h4">Notifications non lues</h2>
+                    <ul class="list-group">
+                        <li t-foreach="unread_notifications" t-as="notification" class="list-group-item">
+                            <strong t-esc="notification.name"/>
+                            <p t-if="notification.message" class="mb-0" t-esc="notification.message"/>
+                            <small class="text-muted" t-field="notification.date"/>
+                        </li>
+                    </ul>
+                </section>
+            </div>
+        </t>
+    </template>
+</odoo>

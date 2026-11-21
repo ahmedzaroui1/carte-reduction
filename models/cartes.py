@@ -35,6 +35,7 @@ class CarteReduction(models.Model):
     ], default='draft', string='Statut')
     # ce champ pour filtrer les programmes spécifiques
     is_carte_reduction = fields.Boolean(string="Pour Cartes de Réduction")
+    is_vip = fields.Boolean(string="Carte VIP")
 
 
     @api.constrains('date_debut', 'date_expiration')
@@ -42,6 +43,13 @@ class CarteReduction(models.Model):
         for record in self:
             if record.date_expiration and record.date_debut and record.date_expiration < record.date_debut:
                 raise ValidationError("La date d'expiration doit être après la date de début.")
+
+    def is_eligible_for(self, partner):
+        if self.env.context.get("skip_card_eval"):
+            return False
+        self.ensure_one()
+        conditions = self.conditions_ids.filtered("active")
+        return not conditions or any(condition.is_eligible(partner) for condition in conditions)
 
     def renouveler_carte(self):
         """Renouvelle la carte attribuée à un client"""
