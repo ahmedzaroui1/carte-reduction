@@ -1,4 +1,6 @@
-from odoo import models, fields
+from odoo import api, fields, models
+
+
 class PosSession(models.Model):
     _inherit = 'pos.session'
 
@@ -113,6 +115,12 @@ class PosOrder(models.Model):
 
     loyalty_points_processed = fields.Boolean(default=False, copy=False, readonly=True)
 
+    @api.model
+    def _order_fields(self, ui_order):
+        order_values = super()._order_fields(ui_order)
+        order_values["to_invoice"] = True
+        return order_values
+
     def _process_order(self, order, draft, existing_order):
         res = super()._process_order(order, draft, existing_order)
         if self.env.context.get("skip_card_eval") or draft or not res:
@@ -120,10 +128,12 @@ class PosOrder(models.Model):
 
         pos_order = self.browse(res).exists()
         if pos_order and pos_order.partner_id:
-            pos_order.partner_id._process_card_purchase(pos_order)
-            pos_order.partner_id._compute_purchase_stats()
-            pos_order.partner_id._compute_customer_segment()
-            self.env['promotion.rule'].apply_rules(pos_order.partner_id)
+            pos_order = pos_order.sudo()
+            partner = pos_order.partner_id
+            partner._process_card_purchase(pos_order)
+            partner._compute_purchase_stats()
+            partner._compute_customer_segment()
+            self.env['promotion.rule'].sudo().apply_rules(partner)
             if pos_order.state == "invoiced" and pos_order.account_move:
                 pos_order.account_move._send_cartes_invoice_email()
 

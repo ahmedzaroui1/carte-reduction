@@ -100,6 +100,68 @@ class TestPass1Loyalty(TransactionCase):
         )
         send_mail.assert_called_once()
 
+    def test_partner_family_keeps_only_one_highest_tier_attribution(self):
+        root = self.env["res.partner"].with_context(skip_card_eval=True).create({
+            "name": "Pass 1 card family root",
+        })
+        child = self.env["res.partner"].with_context(skip_card_eval=True).create({
+            "name": "Pass 1 card family contact",
+            "parent_id": root.id,
+            "type": "delivery",
+        })
+        active_cards = self.env["cartes.reduction"].search([
+            ("carte_type", "in", ["bronze", "silver", "gold"]),
+            ("active", "=", True),
+        ], order="id")
+        cards_by_type = {
+            card.carte_type: card
+            for card in active_cards
+        }
+        self.assertEqual(set(cards_by_type), {"bronze", "silver", "gold"})
+        today = fields.Date.context_today(self.env["res.partner"])
+        attributions = self.env["cartes.attribution"].with_context(
+            skip_card_eval=True
+        )
+        for client, card in (
+            (root, cards_by_type["bronze"]),
+            (child, cards_by_type["bronze"]),
+            (root, cards_by_type["silver"]),
+            (root, cards_by_type["gold"]),
+        ):
+            attributions.create({
+                "client_id": client.id,
+                "carte_ids": [(6, 0, [card.id])],
+                "state": "validated",
+                "date_attribution": today,
+                "date_expiration": fields.Date.add(today, days=30),
+            })
+
+        with patch.object(type(self.env["mail.mail"]), "send") as send_mail:
+            kept = child.with_context(skip_card_eval=False)._assign_welcome_bronze()
+            self.env["res.partner"].create({
+                "name": "Pass 1 additional family contact",
+                "parent_id": root.id,
+                "type": "delivery",
+            })
+
+        family_attributions = self.env["cartes.attribution"].search([
+            ("client_id", "child_of", root.id),
+            ("state", "in", ["validated", "renouvelé"]),
+            ("date_expiration", ">=", today),
+        ])
+        self.assertEqual(kept.carte_ids.carte_type, "gold")
+        self.assertEqual(len(family_attributions), 1)
+        self.assertEqual(family_attributions.carte_ids.carte_type, "gold")
+        self.assertEqual(
+            self.env["cartes.attribution"].search_count([
+                ("client_id", "child_of", root.id),
+                ("carte_ids", "in", cards_by_type["bronze"].ids),
+                ("state", "=", "expired"),
+            ]),
+            2,
+        )
+        send_mail.assert_not_called()
+
     def test_one_tnd_awards_one_point_and_upgrades_at_600(self):
         tnd = self.env.ref("base.TND")
         program = self._get_points_program()

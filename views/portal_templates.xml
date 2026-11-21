@@ -22,7 +22,7 @@
                     </div>
                     <div class="loyalty-points-balance">
                         <span class="text-muted">Solde actif</span>
-                        <strong><span t-esc="points_balance"/> points</strong>
+                        <strong><span t-esc="'%.2f' % points_balance"/> points</strong>
                     </div>
                 </div>
 

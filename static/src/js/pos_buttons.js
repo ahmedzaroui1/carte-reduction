@@ -1,12 +1,22 @@
 /** @odoo-module **/
 import { _t } from "@web/core/l10n/translation";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
+import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
+import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
 import { CustomAlertPopup } from "@cartes_reduction/js/pos_pop_up";  // Assuming you've defined the CustomAlertPopup elsewhere
 import { markup } from "@odoo/owl";
 import { AbstractAwaitablePopup } from "@point_of_sale/app/popup/abstract_awaitable_popup";
+
+patch(PaymentScreen.prototype, {
+    async validateOrder(...args) {
+        this.currentOrder.set_to_invoice(true);
+        return super.validateOrder(...args);
+    },
+});
+
 export class CreateButton extends Component {
     static template = "point_of_sale.CreateButton";
 

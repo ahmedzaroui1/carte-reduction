@@ -22,6 +22,13 @@ from odoo.tools import config
 _logger = logging.getLogger(__name__)
 
 POINTS_PROGRAM_NAME = "Cartes de Réduction - Points TND"
+CARD_TIER_RANK = {
+    "bronze": 0,
+    "standard": 1,
+    "silver": 2,
+    "gold": 3,
+    "premium": 4,
+}
 
 
 class ResPartner(models.Model):
@@ -140,14 +147,16 @@ class ResPartner(models.Model):
                 or self.env.company.email_formatted
                 or "no-reply@cartes-reduction.test"
             )
-            self.env["mail.mail"].with_context(skip_card_eval=True).create({
+            self.env["mail.mail"].sudo().with_context(skip_card_eval=True).create({
                 "subject": subject,
                 "body_html": body,
                 "email_to": self.email,
                 "email_from": email_from,
             }).send()
 
-        return self.env["notifications.client"].with_context(skip_card_eval=True).create({
+        return self.env["notifications.client"].sudo().with_context(
+            skip_card_eval=True
+        ).create({
             "name": subject,
             "message": body,
             "client_id": self.id,
@@ -304,6 +313,7 @@ class ResPartner(models.Model):
         if self.env.context.get("skip_card_eval"):
             return False
         self.ensure_one()
+        partner = self.commercial_partner_id
         today = fields.Date.context_today(self)
         bronze = self.env["cartes.reduction"].search([
             ("carte_type", "=", "bronze"),
@@ -312,20 +322,15 @@ class ResPartner(models.Model):
         if not bronze:
             raise UserError("Aucune carte Bronze active n'est configurée.")
 
-        existing = self.env["cartes.attribution"].search([
-            ("client_id", "=", self.id),
-            ("carte_ids", "in", bronze.ids),
-            ("state", "in", ["validated", "renouvelé"]),
-            ("date_expiration", ">=", today),
-        ], limit=1)
+        existing = partner._normalize_active_tier_attributions()
         if existing:
             return existing
 
-        points_card = self._get_or_create_points_card()
+        points_card = partner._get_or_create_points_card()
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         account_link = html.escape(f"{base_url}/my/cartes", quote=True)
         attribution = self.env["cartes.attribution"].with_context(skip_card_eval=True).create({
-            "client_id": self.id,
+            "client_id": partner.id,
             "carte_ids": [(6, 0, bronze.ids)],
             "state": "validated",
             "date_attribution": bronze.date_debut or today,
@@ -334,7 +339,7 @@ class ResPartner(models.Model):
         bronze.with_context(skip_card_eval=True).write({
             "nombre_utilisateurs": bronze.nombre_utilisateurs + 1,
         })
-        self._send_card_lifecycle_notification(
+        (self if self.email else partner)._send_card_lifecycle_notification(
             bronze,
             "welcome",
             f"Bienvenue - carte {bronze.name}",
@@ -346,22 +351,84 @@ class ResPartner(models.Model):
         )
         return attribution
 
+    def _active_tier_attributions(self):
+        self.ensure_one()
+        partner = self.commercial_partner_id
+        attributions = self.env["cartes.attribution"].search([
+            ("client_id", "child_of", partner.id),
+            ("state", "in", ["validated", "renouvelé"]),
+            ("date_expiration", ">=", fields.Date.context_today(self)),
+        ])
+        return attributions.filtered(
+            lambda attribution: any(
+                card.active and card.carte_type in CARD_TIER_RANK
+                for card in attribution.carte_ids
+            )
+        )
+
+    def _expire_tier_attribution(self, attribution):
+        cards = attribution.carte_ids
+        attribution.with_context(skip_card_eval=True).write({"state": "expired"})
+        for card in cards:
+            card.with_context(skip_card_eval=True).write({
+                "nombre_utilisateurs": max(0, card.nombre_utilisateurs - 1),
+            })
+
+    def _normalize_active_tier_attributions(self):
+        self.ensure_one()
+        partner = self.commercial_partner_id
+        ranked_attributions = []
+        for attribution in partner._active_tier_attributions():
+            tier_cards = attribution.carte_ids.filtered(
+                lambda card: card.active and card.carte_type in CARD_TIER_RANK
+            )
+            if tier_cards:
+                highest_rank = max(CARD_TIER_RANK[card.carte_type] for card in tier_cards)
+                ranked_attributions.append((attribution, highest_rank, tier_cards))
+        if not ranked_attributions:
+            return self.env["cartes.attribution"]
+
+        highest_rank = max(rank for _attribution, rank, _cards in ranked_attributions)
+        highest_attributions = [
+            item for item in ranked_attributions if item[1] == highest_rank
+        ]
+        keeper = min(
+            highest_attributions,
+            key=lambda item: (item[0].client_id != partner, item[0].id),
+        )
+        attribution, _rank, tier_cards = keeper
+        keep_card = tier_cards.sorted("id")[:1]
+        unrelated_cards = attribution.carte_ids.filtered(
+            lambda card: card.carte_type not in CARD_TIER_RANK
+        )
+        kept_cards = keep_card | unrelated_cards
+        cards_to_remove = attribution.carte_ids - kept_cards
+        if cards_to_remove:
+            attribution.with_context(skip_card_eval=True).write({
+                "carte_ids": [(6, 0, kept_cards.ids)],
+            })
+            for card in cards_to_remove:
+                card.with_context(skip_card_eval=True).write({
+                    "nombre_utilisateurs": max(0, card.nombre_utilisateurs - 1),
+                })
+
+        for other_attribution in partner._active_tier_attributions() - attribution:
+            self._expire_tier_attribution(other_attribution)
+        return attribution
+
     def _evaluate_next_card_tier(self):
         if self.env.context.get("skip_card_eval"):
             return False
         self.ensure_one()
+        partner = self.commercial_partner_id
         today = fields.Date.context_today(self)
         tier_rank = {"bronze": 0, "silver": 1, "gold": 2}
-        attributions = self.env["cartes.attribution"].search([
-            ("client_id", "=", self.id),
-            ("state", "in", ["validated", "renouvelé"]),
-            ("date_expiration", ">=", today),
-        ])
+        attributions = partner._normalize_active_tier_attributions()
         active_cards = attributions.mapped("carte_ids").filtered(
             lambda card: card.active and card.carte_type in tier_rank
         )
         if not active_cards:
-            self._assign_welcome_bronze()
+            partner._assign_welcome_bronze()
             return False
 
         assigned_attributions = attributions
@@ -385,10 +452,10 @@ class ResPartner(models.Model):
                 ("carte_type", "=", next_type),
                 ("active", "=", True),
             ], order="id", limit=1)
-            if not next_card or not next_card.is_eligible_for(self):
+            if not next_card or not next_card.is_eligible_for(partner):
                 break
             if self.env["cartes.attribution"].search_count([
-                ("client_id", "=", self.id),
+                ("client_id", "child_of", partner.id),
                 ("carte_ids", "in", next_card.ids),
                 ("state", "in", ["validated", "renouvelé"]),
                 ("date_expiration", ">=", today),
@@ -402,17 +469,12 @@ class ResPartner(models.Model):
                 )
             )
             for attribution in previous_attributions:
-                attribution.with_context(skip_card_eval=True).write({"state": "expired"})
-                for card in attribution.carte_ids:
-                    if card.carte_type in tier_rank:
-                        card.with_context(skip_card_eval=True).write({
-                            "nombre_utilisateurs": max(0, card.nombre_utilisateurs - 1),
-                        })
+                partner._expire_tier_attribution(attribution)
 
             last_attribution = self.env["cartes.attribution"].with_context(
                 skip_card_eval=True
             ).create({
-                "client_id": self.id,
+                "client_id": partner.id,
                 "carte_ids": [(6, 0, next_card.ids)],
                 "state": "validated",
                 "date_attribution": next_card.date_debut or today,
@@ -424,9 +486,9 @@ class ResPartner(models.Model):
                 "nombre_utilisateurs": next_card.nombre_utilisateurs + 1,
             })
             if next_card.is_vip:
-                self._send_vip_notification(self, next_card, create_attribution=False)
+                partner._send_vip_notification(partner, next_card, create_attribution=False)
             else:
-                self._send_card_lifecycle_notification(
+                partner._send_card_lifecycle_notification(
                     next_card,
                     "card_upgrade",
                     f"Votre carte évolue vers {next_card.name}",

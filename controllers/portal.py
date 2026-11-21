@@ -71,7 +71,7 @@ class DiscountCardPortal(http.Controller):
             ("expiration_date", "=", False),
             ("expiration_date", ">=", today),
         ]) if points_program else request.env["loyalty.card"]
-        points_balance = sum(loyalty_cards.mapped("points"))
+        points_balance = round(sum(loyalty_cards.mapped("points")), 2)
         active_conditions = request.env["cartes.conditions"].sudo().search([
             ("active", "=", True),
         ])

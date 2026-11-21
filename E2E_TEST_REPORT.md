@@ -13,12 +13,13 @@
 | Portal signup and welcome | New signup received the Bronze welcome email with an absolute 8075 portal link. `/my/cartes` showed the digital pass, points balance, `1 TND = 1 pt`, and progress bars. |
 | Website checkout and tier upgrade | Two Office Chair Blacks and two Executive Desks completed Demo Payment at `1,083.000 TND`; the customer earned 1,083 points and upgraded to Gold (15%). |
 | Invoice delivery | Follow-up Gold checkout (three Executive Desks) completed at `1,147.500 TND`. Mailpit received invoice `INV/2026/00005` with the official PDF attachment at the signup customer's address. |
-| POS OTP and discount | `e2e_cashier` opened `POS/00001` in `Shop`. The customer verified by OTP; an Executive Desk line showed the Gold 15% discount (`535.500` to `455.175 TND`) and `Remise carte : 15%`. The POS trigger is labeled “Envoyer Code OTP / QR”. |
-| Browser errors | No JS/page errors were captured during the OTP verification or after reloading the POS with the discount line. An existing `t-raw` deprecation warning remains non-blocking. |
+| POS OTP, payment, and invoice | `e2e_cashier` opened `POS/00001` in `Shop`. After OTP verification, an Executive Desk line showed the Gold 15% discount (`535.500` to `455.175 TND`). Cash payment completed as `Shop/0003`; `to_invoice` was set automatically and posted `INV/2026/00006`. Mailpit received the official PDF at the selected customer's address. |
+| POS receipt and card cleanup | Automatic receipt printing is enabled on `Shop`; the paid receipt was displayed in POS. The customer now has one active Gold VIP card; older Silver and duplicate Bronze attributions are expired. Points display to two decimal places. A physical printer was not connected, so hardware printing was not independently tested. |
+| Browser errors | No JS/page errors were captured during OTP verification, POS reload, or the successful payment/receipt flow. An existing `t-raw` deprecation warning remains non-blocking. |
 
-**Module tests:** 18 tests, 0 failures, 0 errors.
+**Module tests:** 31 tests, 0 failures, 0 errors.
 
-**Code fixes:** consolidated the duplicate website `_cart_update` override and made website invoice emails prefer the sale-order customer's address over a stale invoice-contact address.
+**Code fixes:** consolidated the duplicate website `_cart_update` override; deduplicated and normalized active tier attributions; formatted the portal points balance; enabled automatic POS invoicing and receipt printing; and made POS/website invoice and loyalty emails use the selected customer address with cashier-safe permissions.
 
 The earlier `odoo17_e2e` run below is retained as a separate historical report; it used a USD clone and is not the TND run above.
 

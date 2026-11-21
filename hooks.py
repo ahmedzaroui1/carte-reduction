@@ -260,6 +260,11 @@ def configure_pass2_e2e(env):
         "auth_signup_uninvited": "b2c",
     })
 
+    env["pos.config"].search([
+        ("company_id", "=", company.id),
+        ("active", "=", True),
+    ]).write({"iface_print_auto": True})
+
     product_values = (
         ("Office Chair Black", 120.0),
         ("Desk Stand with Screen", 45.0),
