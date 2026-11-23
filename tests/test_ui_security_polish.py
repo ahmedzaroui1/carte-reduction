@@ -133,6 +133,17 @@ class TestPasswordAndEmailPolish(TransactionCase):
         with self.assertRaises(AccessError):
             self.env["product.association"].with_user(public_user).search([])
 
+    def test_ml_training_and_manual_cron_are_admin_only(self):
+        public_user = self.env.ref("base.public_user")
+        with self.assertRaises(AccessError):
+            self.env["ml.model.trainer"].with_user(
+                public_user
+            ).train_and_save_model()
+        with self.assertRaises(AccessError):
+            self.env["customer.ml.cron"].with_user(
+                public_user
+            ).action_test_cron()
+
     def test_order_discount_requires_active_card_and_matching_cart(self):
         company = self.env["res.company"].search([
             ("name", "=", "Sotufab Distribution Tunisie"),

@@ -4,7 +4,7 @@ import joblib
 import os
 from odoo import api, fields, models, tools, _
 import logging
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 import joblib
 import os
 from odoo.tools import config
@@ -50,6 +50,10 @@ class MLModelTrainer(models.Model):
         return 30  # Valeur par défaut si pas de nouvel achat
 
     def train_and_save_model(self):
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError(
+                _("Seuls les administrateurs peuvent entraîner le modèle ML.")
+            )
         try:
             # 1. Chemin du modèle
             model_dir = os.path.join(config['data_dir'], 'ml_models')

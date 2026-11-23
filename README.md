@@ -50,6 +50,8 @@ and the Odoo filestore before production upgrades.
   active customer tier, and server-side reward configuration.
 - Passwords require at least eight characters, one uppercase letter, and one
   digit.
+- Model training and manual analytics refresh are restricted to system
+  administrators.
 - Mailpit is a development/test sink. Its web and SMTP ports bind to loopback;
   use an authenticated production SMTP server for customer delivery.
 - The disposable E2E web port also binds to loopback and should not be exposed

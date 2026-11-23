@@ -85,6 +85,7 @@ access_promotion_rule,promotion.rule,model_promotion_rule,cartes_reduction.carte
 access_promotion_rule_system,promotion.rule.system,model_promotion_rule,base.group_system,1,1,1,1
 access_customer_ml_cron,access.customer.ml.cron,model_customer_ml_cron,cartes_reduction.cartes_manager_group,1,1,1,1
 access_customer_ml_cron_system,access.customer.ml.cron.system,model_customer_ml_cron,base.group_system,1,1,1,1
+access_ml_model_trainer_system,access.ml.model.trainer.system,model_ml_model_trainer,base.group_system,1,0,0,0
 access_product_association,product.association,model_product_association,cartes_reduction.cartes_manager_group,1,1,1,1
 access_product_association_system,product.association.system,model_product_association,base.group_system,1,1,1,1
 access_product_association_user,product.association.user,model_product_association,base.group_user,1,0,0,0

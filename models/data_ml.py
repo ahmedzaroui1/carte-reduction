@@ -5,7 +5,7 @@ from odoo import models, fields, api
 import logging
 from datetime import datetime, timedelta
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -65,6 +65,10 @@ class CustomerMLCron(models.Model):
 
     def action_test_cron(self):
         """Méthode pour tester manuellement"""
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError(
+                "Seuls les administrateurs peuvent lancer ce traitement."
+            )
         self._cron_update_predictions()
         return {
             'type': 'ir.actions.client',
