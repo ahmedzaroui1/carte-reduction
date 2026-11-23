@@ -93,7 +93,9 @@
     <field name="name">Clients VIP</field>
     <field name="res_model">res.partner</field>
     <field name="view_mode">tree,form</field>
-    <field name="domain">[]</field>
+    <field name="domain">
+        [('is_vip', '=', True), ('parent_id', '=', False), ('total_sales', '&gt;', 0)]
+    </field>
 </record>
 
   </odoo>

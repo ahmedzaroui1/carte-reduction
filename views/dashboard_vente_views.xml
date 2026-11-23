@@ -21,7 +21,7 @@
   </record>
 
   <!-- 3. Menu -->
-  <menuitem id="menu_dashboard_vente_root" name="Dashboard Vente" sequence="10"/>
+  <menuitem id="menu_dashboard_vente_root" name="Tableau de Bord Ventes &amp; Cartes" sequence="10"/>
   <menuitem id="menu_dashboard_vente_graph" name="Top Produits"
             parent="menu_dashboard_vente_root"
             action="action_dashboard_vente_graph"/>

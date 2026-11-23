@@ -213,13 +213,18 @@ class PromotionRule(models.Model):
         self.with_context(skip_card_eval=True).write({
             "points_awarded_partner_ids": [(4, partner.id)],
         })
-        partner._send_card_lifecycle_notification(
-            loyalty_card,
-            "points_awarded",
-            f"{self.loyalty_points} points fidélité attribués",
-            f"La promotion « {self.name} » vous a attribué {self.loyalty_points} points.",
+        upgraded_attribution = partner._evaluate_next_card_tier(notify=False)
+        partner._send_loyalty_summary(
+            self.loyalty_points,
+            f"La promotion « {self.name} » vous a attribué "
+            f"{self.loyalty_points:.2f} points.",
+            upgraded_card=(
+                upgraded_attribution.carte_ids[:1]
+                if upgraded_attribution
+                else False
+            ),
+            points_balance=loyalty_card.points,
         )
-        partner._evaluate_next_card_tier()
 
     # =====================
     #  MÉTHODES UTILITAIRES

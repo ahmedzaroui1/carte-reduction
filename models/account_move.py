@@ -1,5 +1,4 @@
 import base64
-import html
 
 from odoo import fields, models
 from odoo.exceptions import UserError
@@ -53,9 +52,10 @@ class AccountMove(models.Model):
             })
             mail = invoice.env["mail.mail"].create({
                 "subject": f"Votre facture {invoice.name}",
-                "body_html": (
-                    f"<p>Bonjour {html.escape(recipient_partner.name or '')},</p>"
-                    f"<p>Veuillez trouver ci-joint votre facture {invoice.name}.</p>"
+                "body_html": recipient_partner._render_loyalty_email(
+                    f"Votre facture {invoice.name}",
+                    "Votre facture officielle est jointe en PDF. "
+                    "Consultez également vos cartes et votre solde de points.",
                 ),
                 "email_to": recipient_email,
                 "email_from": (

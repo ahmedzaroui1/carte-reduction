@@ -19,6 +19,7 @@ class AttributionCarte(models.Model):
     client_name = fields.Char(related="client_id.name", string="Nom", readonly=True)
     client_num_telephone = fields.Char(related="client_id.phone", string="Numéro de Téléphone", readonly=True)
     client_email = fields.Char(related="client_id.email", string="Email", readonly=True)
+    reference = fields.Char(string="Référence", compute="_compute_reference")
     state = fields.Selection([
         ('draft', 'Brouillon'),
         ('validated', 'Validé'),
@@ -140,6 +141,10 @@ class AttributionCarte(models.Model):
         for record in self:
             carte_names = ", ".join(record.carte_ids.mapped('name'))
             record.display_name = f"{record.client_id.name} - {carte_names}"
+
+    def _compute_reference(self):
+        for record in self:
+            record.reference = f"CARD-{record.id:06d}" if record.id else False
 
     display_name = fields.Char(compute="_compute_display_name", store=True)
 

@@ -41,6 +41,7 @@ class DiscountCardPortal(http.Controller):
             "silver": 2,
             "gold": 3,
             "premium": 4,
+            "platinum": 5,
         }
         current_rank = max(
             (tier_order.get(card.carte_type, -1) for card in cards),
@@ -84,22 +85,56 @@ class DiscountCardPortal(http.Controller):
             ("client_id", "child_of", partner.id),
             ("is_read", "=", False),
         ], order="date desc", limit=20)
-        progress = {
-            "silver_spend": min(100, 100 * monthly_spend / 300) if monthly_spend else 0,
-            "silver_points": min(100, 100 * points_balance / 600) if points_balance else 0,
-            "gold_spend": min(100, 100 * monthly_spend / 1000) if monthly_spend else 0,
-            "gold_points": min(100, 100 * points_balance / 1500) if points_balance else 0,
-        }
+        tier_progress = []
+        for tier_type in ("silver", "gold", "platinum"):
+            card = request.env["cartes.reduction"].sudo().search([
+                ("carte_type", "=", tier_type),
+                ("active", "=", True),
+            ], order="id", limit=1)
+            if not card:
+                continue
+            conditions = card.conditions_ids.filtered("active")
+            spend_target = max(conditions.mapped("min_amount"), default=0.0)
+            points_target = max(conditions.mapped("min_points"), default=0.0)
+            tier_progress.append({
+                "card": card,
+                "type": tier_type,
+                "spend_target": spend_target,
+                "points_target": points_target,
+                "spend_progress": (
+                    min(100, 100 * monthly_spend / spend_target)
+                    if spend_target and monthly_spend
+                    else 0
+                ),
+                "points_progress": (
+                    min(100, 100 * points_balance / points_target)
+                    if points_target and points_balance
+                    else 0
+                ),
+            })
+        points_rewards = (
+            points_program.reward_ids.filtered(
+                lambda reward: (
+                    reward.active
+                    and reward.reward_type == "discount"
+                    and reward.discount_mode == "per_order"
+                )
+            ).sorted("required_points")
+            if points_program
+            else request.env["loyalty.reward"]
+        )
 
         return request.render("cartes_reduction.portal_discount_cards", {
             "attributions": attributions,
             "cards": cards,
+            "partner": partner,
             "promotions": promotions,
             "next_tiers": next_tiers,
             "points_balance": points_balance,
             "monthly_spend": monthly_spend,
+            "tier_progress": tier_progress,
+            "points_rewards": points_rewards,
             "unread_notifications": unread_notifications,
-            "progress": progress,
             "otp_code": issued_otp and issued_otp["code"],
             "otp_qr_data_uri": issued_otp and issued_otp["qr_data_uri"],
             "otp_expires_epoch": issued_otp and issued_otp["expires_epoch"],

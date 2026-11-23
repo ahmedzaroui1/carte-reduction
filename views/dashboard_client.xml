@@ -1,164 +1,272 @@
 <odoo>
-    <!-- Vue Graphique -->
-    <record id="view_dashboard_purchase_by_customer_graph" model="ir.ui.view">
-        <field name="name">dashboard.purchase.by.customer.graph</field>
+    <record id="view_dashboard_purchase_by_customer_tree" model="ir.ui.view">
+        <field name="name">dashboard.purchase.by.customer.tree</field>
         <field name="model">dashboard.purchase.by.customer</field>
-    <field name="arch" type="xml">
-    <graph string="Quantité Achetée par Client et Produit" type="bar">
-      <field name="partner_name"/>
-      <field name="total_qty" type="measure"/>
-      <field name="product_id" type="row"/>
-    </graph>
+        <field name="arch" type="xml">
+            <tree string="Achats par client">
+                <field name="partner_name"/>
+                <field name="product_id"/>
+                <field name="source"/>
+                <field name="total_qty"/>
+            </tree>
         </field>
     </record>
 
-    <!-- Action -->
+    <record id="view_dashboard_purchase_by_customer_graph" model="ir.ui.view">
+        <field name="name">dashboard.purchase.by.customer.graph</field>
+        <field name="model">dashboard.purchase.by.customer</field>
+        <field name="arch" type="xml">
+            <graph string="Quantité achetée par client et produit" type="bar">
+                <field name="partner_name" type="row"/>
+                <field name="product_id" type="row"/>
+                <field name="total_qty" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_dashboard_purchase_by_customer_pivot" model="ir.ui.view">
+        <field name="name">dashboard.purchase.by.customer.pivot</field>
+        <field name="model">dashboard.purchase.by.customer</field>
+        <field name="arch" type="xml">
+            <pivot string="Achats par client">
+                <field name="partner_name" type="row"/>
+                <field name="product_id" type="row"/>
+                <field name="source" type="col"/>
+                <field name="total_qty" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
     <record id="action_dashboard_purchase_by_customer" model="ir.actions.act_window">
-        <field name="name">Quantité des Produits Achétés par Client</field>
+        <field name="name">Achats par Client (Web + POS)</field>
         <field name="res_model">dashboard.purchase.by.customer</field>
         <field name="domain">
             [('product_id.name', '!=', 'Recharger le e-wallet'),
             ('product_id.default_code', '!=', 'EWALLET')]
          </field>
-        <field name="view_mode">graph</field>
-        <field name="view_id" ref="view_dashboard_purchase_by_customer_graph"/>
-
+        <field name="view_mode">tree,graph,pivot</field>
+        <field name="view_id" ref="view_dashboard_purchase_by_customer_tree"/>
     </record>
 
-    <!-- Menu -->
     <menuitem id="menu_dashboard_purchase_by_customer"
-              name="Quantité des Produits par Client"
+              name="Achats par Client (Web + POS)"
               parent="menu_dashboard_vente_root"
               action="action_dashboard_purchase_by_customer"
               sequence="40"/>
 
-<!-- views/res_partner_views.xml -->
-<record id="view_partner_form_enhanced" model="ir.ui.view">
-    <field name="name">res.partner.form.enhanced</field>
-    <field name="model">res.partner</field>
-    <field name="inherit_id" ref="base.view_partner_form"/>
-    <field name="arch" type="xml">
-        <!-- Ajout d'un onglet "Analyse Comportementale" -->
-        <xpath expr="//notebook" position="inside">
-            <page string="Analyse Comportementale">
-                <group>
-                    <group string="Statistiques">
-                        <field name="total_sales"/>
-                        <field name="avg_purchase_value"/>
-                        <field name="purchase_frequency"/>
-                        <field name="last_purchase_date"/>
+    <record id="view_partner_form_enhanced" model="ir.ui.view">
+        <field name="name">res.partner.form.enhanced</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Analyse IA &amp; CLV">
+                    <group>
+                        <group string="Valeur client">
+                            <field name="total_sales" string="Total Achats (TND)"/>
+                            <field name="predicted_clv" string="CLV Prédite 12 mois (TND)"/>
+                            <field name="churn_probability" string="Risque Désertion (%)"
+                                   widget="percentage"/>
+                            <field name="next_purchase_prediction" string="Prochain Achat Estimé"/>
+                        </group>
+                        <group string="Activité et segment">
+                            <field name="customer_segment" widget="badge"
+                                   decoration-success="customer_segment == 'vip'"
+                                   decoration-info="customer_segment == 'regular'"
+                                   decoration-warning="customer_segment == 'new'"
+                                   decoration-danger="customer_segment == 'churned'"/>
+                            <field name="is_vip" widget="boolean_favorite"/>
+                            <field name="avg_purchase_value"/>
+                            <field name="purchase_frequency"/>
+                            <field name="last_purchase_date"/>
+                        </group>
                     </group>
-                    <group string="Segmentation">
-                        <field name="customer_segment" widget="badge" options="{'color_field': 'segment_color'}"/>
-                        <field name="is_vip" widget="boolean_favorite"/>
+                    <button name="action_refresh_ai_predictions"
+                            string="Actualiser Prédictions IA (CLV &amp; Apriori)"
+                            type="object" class="btn-primary" groups="base.group_system"/>
+                </page>
+                <page string="Détails Techniques RFM">
+                    <group>
                         <field name="rfm_score"/>
-                        <field name="recency_score" widget="progressbar" options="{'max_value': 5}"/>
-                        <field name="frequency_score" widget="progressbar" options="{'max_value': 5}"/>
-                        <field name="monetary_score" widget="progressbar" options="{'max_value': 5}"/>
+                        <field name="recency_score" widget="progressbar"
+                               options="{'max_value': 5}"/>
+                        <field name="frequency_score" widget="progressbar"
+                               options="{'max_value': 5}"/>
+                        <field name="monetary_score" widget="progressbar"
+                               options="{'max_value': 5}"/>
                     </group>
+                </page>
+                <page string="Cartes et Promotions">
+                    <field name="cartes_attribution_ids" mode="tree,form">
+                        <tree>
+                            <field name="date_attribution"/>
+                            <field name="date_expiration"/>
+                            <field name="state"/>
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_customer_behavior_search" model="ir.ui.view">
+        <field name="name">customer.behavior.search</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <search string="Analyse IA &amp; CLV Clients">
+                <field name="name"/>
+                <field name="customer_segment"/>
+                <filter name="purchased_customers"
+                        string="Clients avec historique d'achat"
+                        domain="[('parent_id', '=', False), ('total_sales', '&gt;', 0)]"/>
+                <filter name="vip_customers" string="Clients VIP"
+                        domain="[('is_vip', '=', True)]"/>
+                <group expand="0" string="Regrouper par">
+                    <filter name="group_by_segment" string="Segment"
+                            context="{'group_by': 'customer_segment'}"/>
                 </group>
-                    <group string="Prédictions">
-                        <field name="predicted_clv" widget="monetary"/>
-                        <field name="churn_probability" widget="percentage"/>
-                        <field name="next_purchase_prediction"/>
-                        <button name="update_behavior_analysis" string="Recalculer" type="object" class="btn-primary"/>
-                        <button name="action_test_cron"
-                            type="object"
-                            string="Tester la prédiction"
-                            class="btn-primary"/>
-                    </group>
-            </page>
-            <page string="Cartes et Promotions">
-                <field name="cartes_attribution_ids" mode="tree,form">
-                    <tree>
+            </search>
+        </field>
+    </record>
 
-                        <field name="date_attribution"/>
-                        <field name="date_expiration"/>
-                        <field name="state"/>
-                    </tree>
-                </field>
-            </page>
-        </xpath>
-    </field>
-</record>
-<record id="view_customer_behavior_graph" model="ir.ui.view">
-    <field name="name">customer.behavior.graph</field>
-    <field name="model">res.partner</field>
-    <field name="arch" type="xml">
-        <graph string="Comportement des Clients" type="bar">
-            <field name="customer_segment" type="row"/>
-            <field name="predicted_clv" type="measure"/>
-            <field name="rfm_score" type="measure"/>
-            <field name="churn_probability" type="measure"/>
-        </graph>
-    </field>
-</record>
-<record id="action_customer_behavior_dashboard" model="ir.actions.act_window">
-    <field name="name">Analyse des Clients</field>
-    <field name="res_model">res.partner</field>
-    <field name="view_mode">graph</field>
-    <field name="context">{}</field>
-</record>
+    <record id="view_customer_behavior_tree" model="ir.ui.view">
+        <field name="name">customer.behavior.tree</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <tree string="Analyse IA &amp; CLV Clients">
+                <header>
+                    <button name="action_refresh_ai_predictions"
+                            string="Actualiser Prédictions IA (CLV &amp; Apriori)"
+                            type="object" class="btn-primary" display="always"
+                            groups="base.group_system"/>
+                </header>
+                <field name="name"/>
+                <field name="customer_segment" widget="badge"
+                       decoration-success="customer_segment == 'vip'"
+                       decoration-info="customer_segment == 'regular'"
+                       decoration-warning="customer_segment == 'new'"
+                       decoration-danger="customer_segment == 'churned'"/>
+                <field name="total_sales" string="Total Achats (TND)"/>
+                <field name="predicted_clv" string="CLV Prédite 12 mois (TND)"/>
+                <field name="churn_probability" string="Risque Désertion (%)"
+                       widget="percentage"/>
+                <field name="next_purchase_prediction" string="Prochain Achat Estimé"/>
+            </tree>
+        </field>
+    </record>
 
+    <record id="view_customer_behavior_graph" model="ir.ui.view">
+        <field name="name">customer.behavior.graph</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <graph string="CLV et Achats par Segment" type="bar">
+                <field name="customer_segment" type="row"/>
+                <field name="predicted_clv" type="measure"/>
+                <field name="total_sales" type="measure"/>
+            </graph>
+        </field>
+    </record>
 
+    <record id="view_customer_behavior_pivot" model="ir.ui.view">
+        <field name="name">customer.behavior.pivot</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <pivot string="CLV et Achats par Segment">
+                <field name="customer_segment" type="row"/>
+                <field name="total_sales" type="measure"/>
+                <field name="predicted_clv" type="measure"/>
+                <field name="avg_purchase_value" type="measure"/>
+            </pivot>
+        </field>
+    </record>
 
-<record id="action_view_partner_form_enhanced" model="ir.actions.act_window">
-    <field name="name">Analyse Client</field>
-    <field name="res_model">res.partner</field>
-    <field name="view_mode">tree,form</field>
-    <field name="view_id" ref="view_partner_form_enhanced"/>
+    <record id="action_customer_behavior_dashboard" model="ir.actions.act_window">
+        <field name="name">Analyse IA &amp; CLV Clients</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">tree,form,graph,pivot</field>
+        <field name="view_id" ref="view_customer_behavior_tree"/>
+        <field name="search_view_id" ref="view_customer_behavior_search"/>
+        <field name="context">
+            {'search_default_purchased_customers': 1}
+        </field>
+    </record>
 
-</record>
+    <record id="action_customer_behavior_dashboard_tree" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_customer_behavior_tree"/>
+        <field name="act_window_id" ref="action_customer_behavior_dashboard"/>
+    </record>
+    <record id="action_customer_behavior_dashboard_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_partner_form_enhanced"/>
+        <field name="act_window_id" ref="action_customer_behavior_dashboard"/>
+    </record>
+    <record id="action_customer_behavior_dashboard_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="view_customer_behavior_graph"/>
+        <field name="act_window_id" ref="action_customer_behavior_dashboard"/>
+    </record>
+    <record id="action_customer_behavior_dashboard_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="4"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="view_customer_behavior_pivot"/>
+        <field name="act_window_id" ref="action_customer_behavior_dashboard"/>
+    </record>
 
-<!-- Vue Liste pour les Associations de Produits -->
-<record id="view_product_association_tree" model="ir.ui.view">
-    <field name="name">product.association.tree</field>
-    <field name="model">product.association</field>
-    <field name="arch" type="xml">
-        <tree string="Associations de Produits">
-            <field name="antecedent_product_ids" widget="many2many_tags" string="Produits de base"/>
-            <field name="associated_product_id"/>
-            <field name="confidence"/>
-            <field name="support"/>
-            <field name="card_id"/>
-        </tree>
-    </field>
-</record>
+    <record id="action_view_partner_form_enhanced" model="ir.actions.act_window">
+        <field name="name">Analyse Client</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_partner_form_enhanced"/>
+    </record>
 
-<!-- Action pour afficher les associations de produits -->
-<record id="action_product_association" model="ir.actions.act_window">
-    <field name="name">Associations de Produits</field>
-    <field name="res_model">product.association</field>
-    <field name="view_mode">tree,form</field>
-    <field name="view_id" ref="view_product_association_tree"/>
-</record>
+    <record id="view_product_association_tree" model="ir.ui.view">
+        <field name="name">product.association.tree</field>
+        <field name="model">product.association</field>
+        <field name="arch" type="xml">
+            <tree string="Règles de Recommandation (Apriori)">
+                <field name="antecedent_product_ids" widget="many2many_tags"
+                       string="Produit acheté"/>
+                <field name="associated_product_id" string="Produit recommandé"/>
+                <field name="confidence" string="Confiance (%)"/>
+                <field name="support" string="Support (%)"/>
+                <field name="lift"/>
+                <field name="card_id"/>
+            </tree>
+        </field>
+    </record>
 
-<record id="view_product_association_generator_form" model="ir.ui.view">
-    <field name="name">product.association.generator.form</field>
-    <field name="model">product.association.generator</field>
-    <field name="arch" type="xml">
-        <form string="Générateur de règles d'association">
-            <header>
-                <button name="generate_association_rules" string="Générer les règles"
-                        type="object" class="btn-primary"/>
-            </header>
-            <sheet>
-                <p>Appuyez sur le bouton pour générer des règles d'association.</p>
-            </sheet>
-        </form>
-    </field>
-</record>
+    <record id="action_product_association" model="ir.actions.act_window">
+        <field name="name">Règles de Recommandation (Apriori)</field>
+        <field name="res_model">product.association</field>
+        <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="view_product_association_tree"/>
+    </record>
 
-<record id="action_product_association_generator" model="ir.actions.act_window">
-    <field name="name">Générateur de règles</field>
-    <field name="res_model">product.association.generator</field>
-    <field name="view_mode">form</field>
-    <field name="target">current</field>
-</record>
+    <record id="view_product_association_generator_form" model="ir.ui.view">
+        <field name="name">product.association.generator.form</field>
+        <field name="model">product.association.generator</field>
+        <field name="arch" type="xml">
+            <form string="Générer Recommandations IA">
+                <header>
+                    <button name="generate_association_rules"
+                            string="Générer Recommandations IA"
+                            type="object" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <p>Les règles utilisent les achats confirmés des 12 derniers mois (Web et POS).</p>
+                </sheet>
+            </form>
+        </field>
+    </record>
 
-
-
-
-
-
+    <record id="action_product_association_generator" model="ir.actions.act_window">
+        <field name="name">Générer Recommandations IA</field>
+        <field name="res_model">product.association.generator</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
 </odoo>

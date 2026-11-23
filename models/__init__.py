@@ -5,6 +5,8 @@ from . import notifications
 from . import rapports
 from . import carte_condition
 from . import cartes_reduction_info
+from . import cin_security
+from . import security_audit
 from . import cartes_client
 from . import cartes_attribution
 from . import loyalty_card
@@ -33,3 +35,4 @@ from . import promotion_rule
 from . import data_ml
 from . import ProductAssociation
 from . import ProductSuggestionWizard
+from . import ir_ui_menu

@@ -1,6 +1,70 @@
 # Personalized Discount Cards — E2E Test Report
 
-## Passe 2 — TND E2E run (2026-11-21)
+## Passe 3A — Part 2 (2026-11-22)
+
+**Database:** `odoo17_e2e_tnd`
+**Module version:** `17.0.1.4.0`
+**Database backup:** `/home/odoo/backups/odoo17_e2e_tnd_before_3A2_20261122_141838.dump`
+
+| Area | Result |
+| --- | --- |
+| Tamper-evident audit | Implemented SHA-256 chained `prev_hash` / `entry_hash` fields, deterministic genesis, UUID event identifiers, canonical payload serialization, advisory transaction locking, and chain verification. Database-only chaining does not prevent privileged DBA truncation or replacement. |
+| Audit UI | Dedicated audit tree/form and `Sécurité & Audit` menu restricted to System Administrators and Cartes Managers. |
+| OWASP hardening | `eval()` in sale reward domains was replaced by literal/safe domain validation; controller discount values are server-recalculated; manual cart discount commit removed; `/sale/order/get_cartes_data` and website cart line ownership are checked. |
+| ML integrity | ML loading now requires a trusted SHA-256 checksum from `CARTES_ML_MODEL_SHA256` or the restricted `cartes_reduction.ml_model_sha256` parameter. Missing, invalid or mismatched checksums fail closed and generate an audit event. |
+| RBAC | Custom administrative ACLs were restricted from public groups to Cartes Managers, POS-specific card read access was added, and portal partner/card/notification record rules were added. |
+| Upgrade validation | Docker Compose validation, Python/XML syntax checks and module upgrade passed. |
+| Automated tests | Odoo reports 54 module tests, 0 failed, 0 error(s). The 52-test baseline remains preserved. |
+| Remaining limitation | True concurrent QR/OTP double-spend automation requires a non-Odoo test process separate from the module test cursor; the existing NOWAIT row-lock test passed. No external audit checkpoint or model checkpointing service was claimed. |
+
+## Passe 3A application security (2026-11-22)
+
+**Database:** `odoo17_e2e_tnd`
+**Module version:** `17.0.1.3.0`
+
+| Area | Verified result |
+| --- | --- |
+| Secret management | `CARTES_HMAC_SECRET` and `CARTES_FERNET_KEY` are supplied to Odoo by Compose from the local `.env`; the file is mode `0600`, excluded from Git and Docker build context, and its values are not stored in Odoo parameters. |
+| CIN protection | CIN values are Fernet-encrypted and keyed-HMAC indexed. The legacy plaintext CIN columns were removed during upgrade; forms show masked values and restrict audited reveals to security administrators / Cartes Managers. |
+| POS verification | OTP and signed QR verification use constant-time digest comparisons, order/card binding, one-time nonce rotation, a three-failure lockout, and PostgreSQL `FOR UPDATE NOWAIT` protection. POS and `/my/cartes` verification no longer request or validate a personal PIN; existing PIN hashes are retained but are not part of redemption. |
+| Redemption and audit | A 60-second same-card cooldown records `VELOCITY_ABUSE`; security audit rows are immutable, and production events use an isolated cursor. |
+| Database cleanup | The legacy `cartes_reduction.pos_otp_secret` parameter was removed; no pending OTP digests or plaintext CIN columns remained after upgrade. |
+| E2E endpoints | `/web/login`, `/shop`, `/web/signup`, and Mailpit returned HTTP 200. Anonymous `/my/cartes` returned the expected HTTP 303 login redirect. |
+| Automated tests | Odoo test statistics reported 52 tests, with 0 failures and 0 errors. |
+
+## Final business calibration — TND E2E (2026-11-21)
+
+**Database:** `odoo17_e2e_tnd`
+
+**Odoo:** `http://192.168.108.129:8075`
+
+**Mailpit:** `http://192.168.108.129:8025`
+
+| Area | Verified result |
+| --- | --- |
+| Tier calibration | Bronze 2%; Silver 5% at 1,000 TND monthly spend or 2,000 points; Gold VIP 10% at 3,500 TND or 7,500 points. Each tier has its configured high-resolution artwork. |
+| Points and rewards | Earning rule is 1 TND = 1 point. The active point rewards are 500 points for 10 TND and 1,500 points for 35 TND. |
+| Website and POS VAT | The Tunisian 19% tax is price-included and preserved by the domestic fiscal position. A `120.000 TND` TTC price computes to `100.840 TND` untaxed plus `19.160 TND` VAT, with the same result in website, POS, and posted invoices. Catalog prices remain `120/45/450 TND`. |
+| Portal | After the web-container restart, the authenticated `/my/cartes` cashier page loaded with the calibrated 5%/10% progress bars and rewards; that account has no active customer card. The deployed card overlay shows the partner name and attribution reference when a card is present. The unauthenticated route redirects to login. |
+| Email rendering | Local tests verify the welcome email includes the cardholder name and attribution reference. A synthetic-only message sent to Mailpit rendered the branded Gold VIP 10% artwork, points summary, highlighted OTP box, and CTA to `/my/cartes` on port 8075. |
+| Endpoints and deployment | Odoo root, `/shop`, `/web/signup`, Mailpit, and the Gold card artwork returned HTTP 200; `/my/cartes` returned the expected login redirect when unauthenticated. The E2E web container was restarted after deployment. |
+| Automated tests | Odoo reports 0 failures and 0 errors across 44 module tests. |
+
+The prior Passe 2 section records the pre-calibration 15% tier results.
+
+## Omnichannel analytics and dashboards (2026-11-21)
+
+| Area | Verified result |
+| --- | --- |
+| Purchase metrics and CLV | Confirmed Sales orders and paid POS orders are counted across commercial-partner descendants. Zero-order prospects retain zero CLV and are excluded by the removable purchaser filter. The 12-month revenue estimate uses average order value × annualized purchase cadence × (1 − churn probability); it is not profit-based CLV. |
+| Apriori | Training reads confirmed web Sales and paid POS transactions. The live recalculation generated 5 rules while preserving 3 manual rules; the UI displayed all 8 with confidence, support, and lift. |
+| Dashboards | The default purchaser filter shows four top-level customers and can be removed to show all 19 partners. Graph and pivot measure menus expose only Total des Achats, CLV Prédite, Moyenne des Achats, and Risque Désertion; technical fields are not aggregatable. The VIP action returns the same four top-level purchasers. The Web + POS customer-purchase view showed both sources, and the product-sales graph loaded in TND. Card-usage statistics loaded but currently had no eligible active-card discounted orders to display. |
+| Refresh access | The refresh action is system-administrator-only. Its click from the current non-admin browser session returned the expected access error; an earlier admin recalculation updated 19 partners and produced the five generated rules. |
+| Browser checks | The Apriori dashboard rendered 8 rows, and a reload captured no browser console or page errors. Odoo server logs still show websocket-binding errors because the evented port 8072 is not exposed by the E2E service; the tested views themselves loaded. |
+
+**Module tests:** 44 tests, 0 failures, 0 errors on `odoo17_e2e_tnd`.
+
+## Passe 2 baseline before final calibration (2026-11-21)
 
 **Database:** `odoo17_e2e_tnd`
 
@@ -14,6 +78,8 @@
 | Website checkout and tier upgrade | Two Office Chair Blacks and two Executive Desks completed Demo Payment at `1,083.000 TND`; the customer earned 1,083 points and upgraded to Gold (15%). |
 | Invoice delivery | Follow-up Gold checkout (three Executive Desks) completed at `1,147.500 TND`. Mailpit received invoice `INV/2026/00005` with the official PDF attachment at the signup customer's address. |
 | POS OTP, payment, and invoice | `e2e_cashier` opened `POS/00001` in `Shop`. After OTP verification, an Executive Desk line showed the Gold 15% discount (`535.500` to `455.175 TND`). Cash payment completed as `Shop/0003`; `to_invoice` was set automatically and posted `INV/2026/00006`. Mailpit received the official PDF at the selected customer's address. |
+| POS card preview and OTP | Selecting `ahmed` immediately displayed Gold 15%, `2,093.23` points, and the original/discounted totals (`142.800` / `121.380 TND`). The order stayed at 0% until Payment sent the OTP and opened the confirmation dialog. Verification applied `Remise carte : 15%` and continued directly to payment. The standalone “Envoyer Code OTP / QR” button also sent and verified an OTP. |
+| Smart POS invoice and loyalty email | Cash payment completed as `Shop/0006` for `121.380 TND`; the order line records 15%, and `INV/2026/00009` is posted. Mailpit received the official PDF at `ahmed@gmail.com` and the `121.38` points notification. Odoo's standard invoice notice also went to the stale billing-contact address `demo@test.com`. |
 | POS receipt and card cleanup | Automatic receipt printing is enabled on `Shop`; the paid receipt was displayed in POS. The customer now has one active Gold VIP card; older Silver and duplicate Bronze attributions are expired. Points display to two decimal places. A physical printer was not connected, so hardware printing was not independently tested. |
 | Browser errors | No JS/page errors were captured during OTP verification, POS reload, or the successful payment/receipt flow. An existing `t-raw` deprecation warning remains non-blocking. |
 

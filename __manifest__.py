@@ -1,16 +1,26 @@
 {
     'name': "Cartes de Réduction",
-    'version': '17.0.1.1.0',
+    'version': '17.0.1.4.0',
     'author': "sassi tasnim ",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
     'depends': ['base', 'sale_management','website' ,'account' , 'point_of_sale','loyalty', 'product','pos_loyalty','sale','sale_loyalty','web','website_sale', 'portal', 'payment_demo'],
     'external_dependencies': {
-        'python': ['scikit-learn>=1.0.0', 'joblib>=1.0.0', 'pandas>=1.0.0']
+        'python': [
+            'sklearn',
+            'joblib',
+            'pandas',
+            'mlxtend',
+            'cryptography',
+            'qrcode',
+        ]
     },
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
+        'security/record_rules.xml',
+        'views/cin_security_views.xml',
+        'views/security_audit_views.xml',
         'views/cartes_reduction_kanban.xml',
         'data/cartes_reduction_data.xml',
         'views/cartes_view.xml',

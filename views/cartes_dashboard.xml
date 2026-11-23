@@ -3,7 +3,7 @@
         <field name="name">carte.usage.stats.tree</field>
         <field name="model">carte.usage.stats</field>
         <field name="arch" type="xml">
-            <tree>
+            <tree string="Utilisations réelles des cartes">
 
                 <field name="partner_id"/>
                 <field name="carte_id"/>
@@ -20,17 +20,31 @@
         <field name="name">carte.usage.stats.graph</field>
         <field name="model">carte.usage.stats</field>
         <field name="arch" type="xml">
-            <graph type="bar">
+            <graph string="Utilisations réelles des cartes" type="bar">
                 <field name="carte_id" groupby="true"/>
                 <field name="partner_id" type="row"/>
                 <field name="total_usage" type="measure"/>
-
             </graph>
         </field>
     </record>
 
+    <record id="view_carte_usage_stats_pivot" model="ir.ui.view">
+        <field name="name">carte.usage.stats.pivot</field>
+        <field name="model">carte.usage.stats</field>
+        <field name="arch" type="xml">
+            <pivot string="Utilisations réelles des cartes">
+                <field name="carte_id" type="row"/>
+                <field name="partner_id" type="row"/>
+                <field name="pos_usage" type="measure"/>
+                <field name="website_usage" type="measure"/>
+                <field name="sale_usage" type="measure"/>
+                <field name="total_usage" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
     <record id="action_carte_usage_stats" model="ir.actions.act_window">
-        <field name="name">Statistiques d'utilisation</field>
+        <field name="name">Statistiques d'Utilisation des Cartes</field>
         <field name="res_model">carte.usage.stats</field>
         <field name="view_mode">tree,graph,pivot</field>
     </record>

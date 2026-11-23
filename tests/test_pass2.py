@@ -4,7 +4,11 @@ from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase
 
-from odoo.addons.cartes_reduction.hooks import configure_pass2_e2e
+from odoo.addons.cartes_reduction.hooks import (
+    configure_pass1_data,
+    configure_pass2_e2e,
+    configure_tunisian_ttc_taxes,
+)
 
 
 class TestPass2Otp(TransactionCase):
@@ -42,6 +46,13 @@ class TestPass2Otp(TransactionCase):
         self.assertEqual(issued["code"], "123456")
         self.assertTrue(issued["qr_data_uri"].startswith("data:image/png;base64,"))
         self.assertNotEqual(self.partner.pos_otp_digest, issued["code"])
+        otp_mail = self.env["mail.mail"].search([
+            ("email_to", "=", self.partner.email),
+            ("mail_message_id.subject", "=", "Votre code de vérification POS"),
+        ], limit=1)
+        self.assertIn("VOTRE CODE POS", otp_mail.body_html)
+        self.assertIn("123456", otp_mail.body_html)
+        self.assertIn("/my/cartes", otp_mail.body_html)
         self.assertEqual(
             self.partner.with_user(self.pos_user).verify_pos_otp_or_qr(
                 issued["qr_token"]
@@ -64,10 +75,10 @@ class TestPass2Otp(TransactionCase):
         ):
             self.partner._issue_pos_otp()
 
-        for _attempt in range(5):
+        for _attempt in range(3):
             result = self.partner.with_user(self.pos_user).verify_pos_otp_or_qr("000000")
         self.assertFalse(result["success"])
-        self.assertEqual(self.partner.pos_otp_attempts, 5)
+        self.assertEqual(self.partner.pos_otp_attempts, 3)
         self.assertTrue(self.partner.pos_otp_locked_until)
         with self.assertRaises(AccessError):
             self.partner.with_user(self.env.ref("base.public_user")).action_send_pos_otp()
@@ -95,6 +106,7 @@ class TestPass2Otp(TransactionCase):
 class TestPass2SetupAndInvoices(TransactionCase):
 
     def test_signup_partner_has_tunisian_checkout_defaults(self):
+        configure_pass1_data(self.env)
         partner = self.env["res.partner"].create({
             "name": "Tunis Signup Checkout",
             "email": "tunis-checkout@example.com",
@@ -103,6 +115,35 @@ class TestPass2SetupAndInvoices(TransactionCase):
         self.assertEqual(partner.city, "Tunis")
         self.assertTrue(partner.street)
         self.assertTrue(partner.phone)
+        welcome_mail = self.env["mail.mail"].search([
+            ("email_to", "=", partner.email),
+            ("mail_message_id.subject", "ilike", "Bienvenue"),
+        ], limit=1)
+        self.assertIn("Programme fidélité", welcome_mail.body_html)
+        self.assertIn("card-bronze-2.png", welcome_mail.body_html)
+        attribution = self.env["cartes.attribution"].search([
+            ("client_id", "=", partner.id),
+            ("state", "=", "validated"),
+        ], limit=1)
+        self.assertRegex(attribution.reference, r"^CARD-\d{6}$")
+        self.assertIn(partner.name, welcome_mail.body_html)
+        self.assertIn(attribution.reference, welcome_mail.body_html)
+        self.assertIn("/my/cartes", welcome_mail.body_html)
+
+    def test_ttc_tax_is_company_default_and_applies_to_sale_products(self):
+        product = self.env["product.template"].create({
+            "name": "TTC hook coverage product",
+            "sale_ok": True,
+            "taxes_id": [(5, 0, 0)],
+        })
+
+        self.assertTrue(configure_tunisian_ttc_taxes(self.env))
+
+        sales_tax = self.env.company.account_sale_tax_id
+        self.assertEqual(sales_tax.name, "TVA 19%")
+        self.assertEqual(sales_tax.amount, 19.0)
+        self.assertTrue(sales_tax.price_include)
+        self.assertEqual(product.taxes_id, sales_tax)
 
     def test_e2e_seed_is_published_and_idempotent(self):
         first = configure_pass2_e2e(self.env)
@@ -117,17 +158,102 @@ class TestPass2SetupAndInvoices(TransactionCase):
             self.assertEqual(len(product), 1)
             self.assertEqual(product.list_price, price)
             self.assertTrue(product.website_published)
+            self.assertEqual(product.taxes_id, second["sales_tax"])
+        self.assertEqual(second["sales_tax"].name, "TVA 19%")
+        self.assertEqual(second["sales_tax"].amount, 19.0)
+        self.assertEqual(second["sales_tax"].tax_group_id.name, "TVA 19%")
+        self.assertTrue(second["sales_tax"].price_include)
+        self.assertFalse(second["domestic_fiscal_position"].vat_required)
+        self.assertEqual(
+            second["website"].show_line_subtotals_tax_selection,
+            "tax_included",
+        )
         self.assertEqual(first["payment_provider"], second["payment_provider"])
         self.assertEqual(second["payment_provider"].state, "test")
         self.assertTrue(second["payment_provider"].is_published)
+        customer = self.env["res.partner"].with_context(
+            skip_card_eval=True
+        ).create({
+            "name": "TVA 19% website customer",
+            "country_id": self.env.ref("base.tn").id,
+        })
+        order = self.env["sale.order"].create({
+            "partner_id": customer.id,
+            "website_id": second["website"].id,
+            "pricelist_id": second["pricelist"].id,
+        })
+        self.assertEqual(
+            order.fiscal_position_id,
+            second["domestic_fiscal_position"],
+        )
+        line = self.env["sale.order.line"].create({
+            "order_id": order.id,
+            "product_id": second["products"][0].product_variant_id.id,
+            "product_uom_qty": 1,
+            "price_unit": 120.0,
+        })
+        self.assertEqual(line.tax_id, second["sales_tax"])
+        self.assertAlmostEqual(order.amount_total, 120.0, places=2)
+        self.assertAlmostEqual(order.amount_untaxed, 100.84, places=2)
+        self.assertAlmostEqual(order.amount_tax, 19.16, places=2)
         pos_config = self.env["pos.config"].search([
             ("company_id", "=", self.env.company.id),
             ("active", "=", True),
         ], limit=1)
         self.assertTrue(pos_config)
         self.assertTrue(pos_config.iface_print_auto)
+        self.assertEqual(pos_config.iface_tax_included, "total")
+        self.assertEqual(
+            pos_config.default_fiscal_position_id,
+            second["domestic_fiscal_position"],
+        )
+        pos_tax = pos_config.default_fiscal_position_id.map_tax(
+            second["products"][0].taxes_id
+        )
+        pos_totals = pos_tax.compute_all(
+            120.0,
+            currency=second["pricelist"].currency_id,
+            quantity=1,
+            product=second["products"][0].product_variant_id,
+            partner=customer,
+        )
+        self.assertAlmostEqual(pos_totals["total_included"], 120.0, places=2)
+        self.assertAlmostEqual(pos_totals["total_excluded"], 100.84, places=2)
+        self.assertAlmostEqual(
+            sum(item["amount"] for item in pos_totals["taxes"]),
+            19.16,
+            places=2,
+        )
+        journal = self.env["account.journal"].search([
+            ("type", "=", "sale"),
+            ("company_id", "=", self.env.company.id),
+        ], limit=1)
+        income_account = journal.default_account_id or self.env[
+            "account.account"
+        ].search([
+            ("company_id", "=", self.env.company.id),
+            ("account_type", "in", ["income", "income_other"]),
+        ], limit=1)
+        invoice = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "partner_id": customer.id,
+            "journal_id": journal.id,
+            "invoice_line_ids": [(0, 0, {
+                "name": "TTC invoice verification",
+                "product_id": second["products"][0].product_variant_id.id,
+                "quantity": 1,
+                "price_unit": 120.0,
+                "account_id": income_account.id,
+                "tax_ids": [(6, 0, second["sales_tax"].ids)],
+            })],
+        })
+        invoice.action_post()
+        self.assertAlmostEqual(invoice.amount_total, 120.0, places=2)
+        self.assertAlmostEqual(invoice.amount_untaxed, 100.84, places=2)
+        self.assertAlmostEqual(invoice.amount_tax, 19.16, places=2)
         self.assertEqual(
             self.env["product.association"].search_count([
+                ("is_generated", "=", False),
                 ("associated_product_id", "in", second["products"].mapped(
                     "product_variant_id"
                 ).ids),
@@ -138,6 +264,16 @@ class TestPass2SetupAndInvoices(TransactionCase):
             ("config_id", "=", pos_config.id),
         ], limit=1)
         self.assertTrue(session)
+        card_fields = session._loader_params_cartes_reduction()[
+            "search_params"
+        ]["fields"]
+        self.assertIn("carte_type", card_fields)
+        self.assertIn("discount", card_fields)
+        self.assertIn("active", card_fields)
+        partner_fields = session._loader_params_res_partner()[
+            "search_params"
+        ]["fields"]
+        self.assertIn("parent_id", partner_fields)
         order_values = self.env["pos.order"]._order_fields({
             "user_id": self.env.uid,
             "pos_session_id": session.id,
@@ -238,6 +374,8 @@ class TestPass2SetupAndInvoices(TransactionCase):
             ("mail_message_id.subject", "=", f"Votre facture {invoice.name}"),
         ], limit=1)
         self.assertTrue(sent_mail)
+        self.assertIn("Programme fidélité", sent_mail.body_html)
+        self.assertIn("/my/cartes", sent_mail.body_html)
 
     def test_pos_invoice_email_uses_selected_customer_address(self):
         partner = self.env["res.partner"].with_context(

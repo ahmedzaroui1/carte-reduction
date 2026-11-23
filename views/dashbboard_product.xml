@@ -1,13 +1,11 @@
 <odoo>
     <!-- Menu racine -->
-<menuitem id="menu_dashboard_vente_root" name="Tableau de Bord Ventes" sequence="10"/>
-
 <!-- Vue Graphique -->
 <record id="view_dashboard_product_sales_graph" model="ir.ui.view">
     <field name="name">dashboard.product.sales.graph</field>
     <field name="model">dashboard.product.sales</field>
     <field name="arch" type="xml">
-        <graph string="Produits les plus vendus (POS + Commande)" type="bar">
+        <graph string="Ventes produits Web + POS (TND)" type="bar">
             <field name="product_id"/>
             <field name="total_qty" type="measure"/>
             <field name="total_revenue" type="measure"/>
@@ -20,17 +18,19 @@
     <field name="name">dashboard.product.sales.tree</field>
     <field name="model">dashboard.product.sales</field>
     <field name="arch" type="xml">
-        <tree>
+        <tree string="Ventes produits Web + POS (TND)">
             <field name="product_id"/>
+            <field name="currency_id" invisible="1"/>
             <field name="total_qty"/>
             <field name="total_revenue"/>
+            <field name="average_price"/>
         </tree>
     </field>
 </record>
 
 <!-- Action -->
 <record id="action_dashboard_product_sales_graph" model="ir.actions.act_window">
-    <field name="name">Top Produits (Global)</field>
+    <field name="name">Ventes Produits Web + POS (TND)</field>
     <field name="res_model">dashboard.product.sales</field>
     <field name="view_mode">graph,tree</field>
     <field name="view_id" ref="view_dashboard_product_sales_graph"/>

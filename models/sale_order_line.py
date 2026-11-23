@@ -1,6 +1,28 @@
 # cartes_reduction/models/sale_order_line.py
+import ast
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
+
+
+def _safe_product_domain(expression):
+    if not expression or expression == "[]":
+        return []
+    try:
+        domain = ast.literal_eval(expression)
+    except (ValueError, SyntaxError):
+        raise ValidationError("Invalid product reward domain.")
+    if not isinstance(domain, list):
+        raise ValidationError("Invalid product reward domain.")
+    allowed_operators = {"=", "!=", "in", "not in", "<", ">", "<=", ">="}
+    for condition in domain:
+        if not (
+            isinstance(condition, (list, tuple))
+            and len(condition) == 3
+            and isinstance(condition[0], str)
+            and condition[1] in allowed_operators
+        ):
+            raise ValidationError("Invalid product reward domain.")
+    return domain
 
 
 class SaleOrderLine(models.Model):
@@ -62,9 +84,9 @@ class SaleOrderLine(models.Model):
         for reward in best_program.reward_ids.filtered(lambda r: r.reward_type in ('discount', 'product')):
             is_applicable = (
                     (reward.reward_product_ids and product in reward.reward_product_ids) or
-                    (reward.reward_product_domain and eval(reward.reward_product_domain) + [('id', '=', product.id)] and
+                    (reward.reward_product_domain and _safe_product_domain(reward.reward_product_domain) + [('id', '=', product.id)] and
                      self.env['product.product'].search_count(
-                         eval(reward.reward_product_domain) + [('id', '=', product.id)])) or
+                         _safe_product_domain(reward.reward_product_domain) + [('id', '=', product.id)])) or
                     (not reward.reward_product_ids and not reward.reward_product_domain)
             )
             if is_applicable and reward.discount > result['max_discount']:

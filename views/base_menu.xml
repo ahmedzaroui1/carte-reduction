@@ -12,11 +12,12 @@
     <menuitem id="menu_lister_conditions" name="Conditions d'obtention" parent="menu_gestion_cartes" action="action_lister_conditions" sequence="25"/>
     <menuitem id="menu_attribuer_carte" name="Attribuer une carte à un client" parent="menu_gestion_cartes" action="action_cartes_attribution_list" sequence="30"/>
     <menuitem id="menu_renouveler_carte" name="Renouveler une carte expirée" parent="menu_gestion_cartes" action="action_renouveler_carte" sequence="40"/>
+    <menuitem id="menu_cartes_clients_secure" name="Clients et CIN masquées" parent="menu_gestion_cartes" action="action_cartes_clients_secure" sequence="50" groups="base.group_system,cartes_reduction.cartes_manager_group"/>
 
     <!-- Menu Gestion des Promotions  -->
     <menuitem id="menu_promotions" name="Gestion des Promo" parent="menu_cartes_reduction" sequence="20"/>
     <menuitem id="menu_ajouter_promotion" name="Ajouter une promotion" parent="menu_promotions" action="action_loyalty_program" sequence="10"/>
-    <menuitem id="menu_gestion_reductions" name="Associations de Produits" parent="menu_promotions" action="action_product_association"  sequence="20"/>
+    <menuitem id="menu_gestion_reductions" name="Règles de Recommandation (Apriori)" parent="menu_promotions" action="action_product_association" sequence="20" groups="base.group_system"/>
     <menuitem id="menu_custom_promotions" name="Gérer les promotions personnalisées" parent="menu_promotions" action="action_gestion_reductions" sequence="25"/>
     <menuitem id="menu_promotions_en_cours" name="Voir les promotions en cours" parent="menu_promotions" action="action_promotions_en_cours" sequence="30"/>
     <menuitem id="menu_planifier_promotions" name="Planifier des promotions futures" parent="menu_promotions" action="action_planifier_promotions" sequence="40"/>
@@ -26,7 +27,7 @@
     <menuitem id="menu_gestion_points" name="Gérer les points de fidélité" parent="menu_fidelite_clients" action="action_gestion_points" sequence="10"/>
     <menuitem id="menu_points_loyalty_cards" name="Soldes de Points Clients" parent="menu_fidelite_clients" action="action_points_loyalty_cards" sequence="15"/>
     <menuitem id="menu_consulter_historique_achats" name="liste des cartes" parent="menu_fidelite_clients" action="action_loyalty_program_view_tree" sequence="20"/>
-    <menuitem id="menu_echanger_points" name="generer les regles" parent="menu_fidelite_clients" action="action_product_association_generator" sequence="30"/>
+    <menuitem id="menu_echanger_points" name="Générer Recommandations IA" parent="menu_fidelite_clients" action="action_product_association_generator" sequence="30" groups="base.group_system"/>
     <menuitem id="menu_identification_vip" name="Identifier les clients VIP" parent="menu_fidelite_clients" action="action_partner_vip" sequence="40"/>
 
     <!-- Menu Notifications et Alertes -->
@@ -34,15 +35,15 @@
     <menuitem id="menu_rappels_automatiques" name="Rappels automatiques" parent="menu_notifications_alertes" action="action_rappels_automatiques" sequence="10"/>
     <menuitem id="menu_notifications_clients" name="Notifications clients" parent="menu_notifications_alertes" action="action_notification_client" sequence="20"/>
     <menuitem id="menu_alertes_cartes_inactives" name="Alerte sur les cartes inactives" parent="menu_notifications_alertes" action="action_alertes_cartes_inactives" sequence="30"/>
-    <menuitem id="menu_envoi_newsletters" name="comportement d'achat client" parent="menu_notifications_alertes" action="action_customer_behavior_dashboard" sequence="40"/>
 
     <!-- Menu Rapports et Analyses -->
     <menuitem id="menu_rapports_analyses" name="Rapports et Analyses" parent="menu_cartes_reduction" sequence="50"/>
-    <menuitem id="menu_voir_statistiques_utilisation" name="Voir les statistiques d’utilisation" parent="menu_rapports_analyses" action="action_dashboard_vente_graph" sequence="10"/>
-    <menuitem id="menu_exporter_donnees" name="Exporter les données" parent="menu_rapports_analyses" action="action_dashboard_product_sales_graph" sequence="20"/>
-    <menuitem id="menu_analyse_tendances" name="Analyse des tendances de consommation" parent="menu_rapports_analyses" action="action_dashboard_purchase_by_customer" sequence="30"/>
-    <menuitem id="menu_utilisation_cartes" name="Statistique des cartes" parent="menu_rapports_analyses"  action="action_carte_usage_stats"  sequence="30"/>
+    <menuitem id="menu_envoi_newsletters" name="Analyse IA &amp; CLV Clients" parent="menu_rapports_analyses" action="action_customer_behavior_dashboard" sequence="5" groups="base.group_system"/>
+    <menuitem id="menu_rapports_recommandations_ia" name="Recommandations IA (Apriori)" parent="menu_rapports_analyses" action="action_product_association" sequence="10" groups="base.group_system"/>
+    <menuitem id="menu_utilisation_cartes" name="Statistiques d'Utilisation des Cartes" parent="menu_rapports_analyses" action="action_carte_usage_stats" sequence="20"/>
+    <menuitem id="menu_security_audit" name="Sécurité &amp; Audit"
+              parent="menu_rapports_analyses" action="action_security_audit"
+              sequence="30" groups="base.group_system,cartes_reduction.cartes_manager_group"/>
 
 </odoo>
-
 

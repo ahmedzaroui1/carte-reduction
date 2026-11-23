@@ -1,7 +1,10 @@
+import base64
 import logging
+from pathlib import Path
 
 from odoo import SUPERUSER_ID, api, fields
 
+from .models.security_utils import validate_security_secrets
 
 _logger = logging.getLogger(__name__)
 
@@ -75,7 +78,7 @@ def configure_pass1_data(env):
     earning_values = {
         "program_id": points_program.id,
         "reward_point_mode": "money",
-        "reward_point_amount": 1.0,
+        "reward_point_amount": 0.1,
         "minimum_amount": 0.0,
         "active": True,
     }
@@ -84,65 +87,144 @@ def configure_pass1_data(env):
     else:
         earning_rule = env["loyalty.rule"].create(earning_values)
 
-    points_reward = env["loyalty.reward"].search([
-        ("program_id", "=", points_program.id),
-        ("reward_type", "=", "discount"),
-        ("discount_mode", "=", "per_order"),
-        ("required_points", "=", 100),
-    ], limit=1)
-    points_reward_values = {
-        "program_id": points_program.id,
-        "reward_type": "discount",
-        "discount_mode": "per_order",
-        "discount": 5.0,
-        "required_points": 100,
-        "discount_applicability": "order",
-        "description": "5 TND de remise pour 100 points",
-        "active": True,
-    }
-    if points_reward:
-        points_reward.write(points_reward_values)
-    else:
-        points_reward = env["loyalty.reward"].create(points_reward_values)
+    points_rewards = (
+        (500.0, 10.0, "10 TND de remise pour 500 points"),
+        (1500.0, 35.0, "35 TND de remise pour 1 500 points"),
+    )
+    required_point_levels = {required for required, _amount, _label in points_rewards}
+    existing_points_rewards = points_program.reward_ids.filtered(
+        lambda reward: (
+            reward.reward_type == "discount"
+            and reward.discount_mode == "per_order"
+            and reward.active
+        )
+    )
+    for reward in existing_points_rewards:
+        if reward.required_points not in required_point_levels:
+            reward.write({"active": False})
+    for required_points, amount, description in points_rewards:
+        matching_rewards = env["loyalty.reward"].with_context(
+            active_test=False
+        ).search([
+            ("program_id", "=", points_program.id),
+            ("reward_type", "=", "discount"),
+            ("discount_mode", "=", "per_order"),
+            ("required_points", "=", required_points),
+        ], order="id")
+        reward = matching_rewards[:1]
+        if len(matching_rewards) > 1:
+            matching_rewards[1:].write({"active": False})
+        reward_values = {
+            "program_id": points_program.id,
+            "reward_type": "discount",
+            "discount_mode": "per_order",
+            "discount": amount,
+            "required_points": required_points,
+            "discount_applicability": "order",
+            "description": description,
+            "active": True,
+        }
+        if reward:
+            reward.write(reward_values)
+        else:
+            env["loyalty.reward"].create(reward_values)
 
     tiers = (
         {
             "type": "bronze",
-            "name": "E2E Bronze" if env["cartes.reduction"].search_count([("name", "=", "E2E Bronze")]) else "Bronze",
-            "discount": 5.0,
+            "name": "Bronze",
+            "discount": 2.0,
             "is_vip": False,
+            "image": "card-bronze-2.png",
             "conditions": [
                 ("Bronze - Welcome", 0.0, 0.0, "Carte de bienvenue."),
             ],
         },
         {
             "type": "silver",
-            "name": "E2E Silver" if env["cartes.reduction"].search_count([("name", "=", "E2E Silver")]) else "Silver",
-            "discount": 10.0,
+            "name": "Silver",
+            "discount": 5.0,
             "is_vip": False,
+            "image": "card-silver-5.png",
             "conditions": [
-                ("Silver - Monthly Spend", 300.0, 0.0, "Dépenses mensuelles d'au moins 300 TND."),
-                ("Silver - Points", 0.0, 600.0, "Solde cumulé d'au moins 600 points."),
+                (
+                    "Silver - Monthly Spend",
+                    40000.0,
+                    0.0,
+                    "Dépenses des 30 derniers jours d'au moins 40 000 TND (ou 4 000 points cumulés).",
+                ),
+                (
+                    "Silver - Points",
+                    0.0,
+                    4000.0,
+                    "Solde cumulé d'au moins 4 000 points (ou 40 000 TND dépensés en 30 jours).",
+                ),
             ],
         },
         {
             "type": "gold",
-            "name": "E2E Gold" if env["cartes.reduction"].search_count([("name", "=", "E2E Gold")]) else "Gold VIP",
-            "discount": 15.0,
+            "name": "Gold VIP",
+            "discount": 10.0,
             "is_vip": True,
+            "image": "card-gold-vip-10.png",
             "conditions": [
-                ("Gold - Monthly Spend", 1000.0, 0.0, "Dépenses mensuelles d'au moins 1 000 TND."),
-                ("Gold - Points", 0.0, 1500.0, "Solde cumulé d'au moins 1 500 points."),
+                (
+                    "Gold - Monthly Spend",
+                    60000.0,
+                    0.0,
+                    "Dépenses des 30 derniers jours d'au moins 60 000 TND (ou 6 000 points cumulés).",
+                ),
+                (
+                    "Gold - Points",
+                    0.0,
+                    6000.0,
+                    "Solde cumulé d'au moins 6 000 points (ou 60 000 TND dépensés en 30 jours).",
+                ),
+            ],
+        },
+        {
+            "type": "platinum",
+            "name": "Platinum",
+            "discount": 16.0,
+            "is_vip": True,
+            "image": "card-platinum-16.png",
+            "conditions": [
+                (
+                    "Platinum - Rolling Spend",
+                    100000.0,
+                    0.0,
+                    "Dépenses des 30 derniers jours d'au moins 100 000 TND (ou 10 000 points cumulés).",
+                ),
+                (
+                    "Platinum - Points",
+                    0.0,
+                    10000.0,
+                    "Solde cumulé d'au moins 10 000 points (ou 100 000 TND dépensés en 30 jours).",
+                ),
             ],
         },
     )
 
     for tier in tiers:
         program_name = f"Carte {tier['type'].title()} - {tier['discount']:.0f}%"
-        tier_program = env["loyalty.program"].search([
-            ("name", "=", program_name),
-            ("company_id", "in", [False, company.id]),
-        ], limit=1)
+        card = env["cartes.reduction"].search([
+            ("carte_type", "=", tier["type"]),
+        ], order="id", limit=1)
+        tier_program = card.loyalty_program_id.filtered(
+            lambda program: program.program_type == "next_order_coupons"
+            and program.company_id.id in (False, company.id)
+        )[:1]
+        if not tier_program:
+            tier_program = env["loyalty.program"].search([
+                ("name", "=", program_name),
+                ("company_id", "in", [False, company.id]),
+            ], limit=1)
+        if not tier_program:
+            tier_program = env["loyalty.program"].search([
+                ("name", "ilike", f"Carte {tier['type'].title()} - %"),
+                ("program_type", "=", "next_order_coupons"),
+                ("company_id", "in", [False, company.id]),
+            ], order="id", limit=1)
         tier_program_values = {
             "name": program_name,
             "program_type": "next_order_coupons",
@@ -157,6 +239,7 @@ def configure_pass1_data(env):
             tier_program.write(tier_program_values)
         else:
             tier_program = env["loyalty.program"].create(tier_program_values)
+        tier_program.write(tier_program_values)
 
         tier_reward = env["loyalty.reward"].search([
             ("program_id", "=", tier_program.id),
@@ -195,9 +278,17 @@ def configure_pass1_data(env):
                 condition = conditions.create(condition_values)
             condition_ids.append(condition.id)
 
-        card = env["cartes.reduction"].search([
-            ("carte_type", "=", tier["type"]),
-        ], order="id", limit=1)
+        image_path = (
+            Path(__file__).resolve().parent
+            / "static"
+            / "img"
+            / "cards"
+            / tier["image"]
+        )
+        try:
+            image_data = base64.b64encode(image_path.read_bytes())
+        except OSError as error:
+            raise ValueError(f"Unable to load tier artwork: {image_path}") from error
         card_values = {
             "name": tier["name"],
             "carte_type": tier["type"],
@@ -206,6 +297,9 @@ def configure_pass1_data(env):
             "is_vip": tier["is_vip"],
             "active": True,
             "state": "active",
+            "image_1920": image_data,
+            "image": image_data,
+            "logo": image_data,
             "conditions_ids": [(6, 0, condition_ids)],
             "loyalty_program_id": [(6, 0, tier_program.ids)],
         }
@@ -217,6 +311,79 @@ def configure_pass1_data(env):
     return points_program
 
 
+def _get_tnd_sales_tax(env, company, tnd):
+    country = company.account_fiscal_country_id or env.ref(
+        "base.tn", raise_if_not_found=False
+    )
+    if not country:
+        raise ValueError("The company needs Tunisia as its accounting country.")
+
+    tax = env["account.tax"].search([
+        ("company_id", "=", company.id),
+        ("country_id", "=", country.id),
+        ("type_tax_use", "=", "sale"),
+        ("amount_type", "=", "percent"),
+        ("amount", "=", 19.0),
+    ], order="id", limit=1)
+    if tax:
+        tax.write({
+            "name": "TVA 19%",
+            "active": True,
+            "price_include": True,
+        })
+    else:
+        tax_group = env["account.tax.group"].search([
+            ("country_id", "=", country.id),
+            ("name", "ilike", "%19%"),
+        ], order="id", limit=1)
+        if not tax_group:
+            tax_group = env["account.tax.group"].create({
+                "name": "TVA 19%",
+                "country_id": country.id,
+            })
+        tax = env["account.tax"].create({
+            "name": "TVA 19%",
+            "amount": 19.0,
+            "amount_type": "percent",
+            "type_tax_use": "sale",
+            "company_id": company.id,
+            "country_id": country.id,
+            "tax_group_id": tax_group.id,
+            "price_include": True,
+        })
+    if tax.tax_group_id.name != "TVA 19%":
+        tax.tax_group_id.write({"name": "TVA 19%"})
+    if tax.company_id.currency_id != tnd:
+        raise ValueError("The 19% sales tax is not configured for the TND company.")
+    return tax
+
+
+def _apply_ttc_tax_to_sale_products(env, company, sales_tax):
+    company.write({"account_sale_tax_id": sales_tax.id})
+    products = env["product.template"].with_company(company).search([
+        ("sale_ok", "=", True),
+        ("company_id", "in", [False, company.id]),
+    ])
+    products.write({"taxes_id": [(6, 0, sales_tax.ids)]})
+    return products
+
+
+def configure_tunisian_ttc_taxes(env):
+    env = api.Environment(env.cr, SUPERUSER_ID, {})
+    tunisia = env.ref("base.tn")
+    tnd = env.ref("base.TND")
+    companies = env["res.company"].search([("currency_id", "=", tnd.id)])
+    for company in companies:
+        company_country = (
+            company.account_fiscal_country_id or company.partner_id.country_id
+        )
+        if company_country != tunisia:
+            continue
+        sales_tax = _get_tnd_sales_tax(env, company, tnd)
+        _apply_ttc_tax_to_sale_products(env, company, sales_tax)
+    return True
+
+
 def configure_pass2_e2e(env):
     env = api.Environment(env.cr, SUPERUSER_ID, {})
     company = env.company
@@ -225,6 +392,21 @@ def configure_pass2_e2e(env):
         raise ValueError(
             "Pass 2 shop seed requires the active E2E company currency to be TND."
         )
+    sales_tax = _get_tnd_sales_tax(env, company, tnd)
+    _apply_ttc_tax_to_sale_products(env, company, sales_tax)
+    country = company.account_fiscal_country_id or env.ref("base.tn")
+    domestic_position = env["account.fiscal.position"].search([
+        ("company_id", "=", company.id),
+        ("country_id", "=", country.id),
+        ("auto_apply", "=", True),
+    ], order="sequence,id", limit=1)
+    if not domestic_position:
+        raise ValueError("No auto-applied domestic fiscal position exists for Tunisia.")
+    domestic_position.write({
+        "auto_apply": True,
+        "sequence": 1,
+        "vat_required": False,
+    })
 
     parameters = env["ir.config_parameter"].sudo()
     parameters.set_param("web.base.url", "http://192.168.108.129:8075")
@@ -258,12 +440,17 @@ def configure_pass2_e2e(env):
         "pricelist_id": pricelist.id,
         "pricelist_ids": [(4, pricelist.id)],
         "auth_signup_uninvited": "b2c",
+        "show_line_subtotals_tax_selection": "tax_included",
     })
 
     env["pos.config"].search([
         ("company_id", "=", company.id),
         ("active", "=", True),
-    ]).write({"iface_print_auto": True})
+    ]).write({
+        "iface_print_auto": True,
+        "iface_tax_included": "total",
+        "default_fiscal_position_id": domestic_position.id,
+    })
 
     product_values = (
         ("Office Chair Black", 120.0),
@@ -285,6 +472,7 @@ def configure_pass2_e2e(env):
             "website_id": website.id,
             "invoice_policy": "order",
             "company_id": company.id,
+            "taxes_id": [(6, 0, sales_tax.ids)],
         }
         if product:
             product.write(values)
@@ -345,9 +533,13 @@ def configure_pass2_e2e(env):
         "website": website,
         "pricelist": pricelist,
         "products": products,
+        "sales_tax": sales_tax,
+        "domestic_fiscal_position": domestic_position,
         "payment_provider": demo_provider,
     }
 
 
 def post_init_hook(env):
+    validate_security_secrets()
     configure_pass1_data(env)
+    configure_tunisian_ttc_taxes(env)

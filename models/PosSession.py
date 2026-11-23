@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 
 class PosSession(models.Model):
@@ -47,7 +48,14 @@ class PosSession(models.Model):
         return {
             'search_params': {
                 'domain': [],
-                'fields': ['name', 'state', 'loyalty_program_id',],
+                'fields': [
+                    'name',
+                    'state',
+                    'active',
+                    'carte_type',
+                    'discount',
+                    'loyalty_program_id',
+                ],
             },
 
         }
@@ -103,22 +111,33 @@ class PosSession(models.Model):
                 'domain': [],
                 'fields': [
                     'antecedent_product_ids', 'associated_product_id',
-                    'confidence', 'support', 'card_id'
+                    'confidence', 'support', 'lift', 'card_id'
                 ],
             },
         }
 
     def _get_pos_ui_product_association(self, params):
         return self.env['product.association'].search_read(**params['search_params'])
+
+    def _loader_params_res_partner(self):
+        params = super()._loader_params_res_partner()
+        fields_to_load = params['search_params']['fields']
+        if 'parent_id' not in fields_to_load:
+            fields_to_load.append('parent_id')
+        return params
+
+
 class PosOrder(models.Model):
     _inherit = 'pos.order'
 
     loyalty_points_processed = fields.Boolean(default=False, copy=False, readonly=True)
+    card_redemption_order_uid = fields.Char(copy=False, readonly=True)
 
     @api.model
     def _order_fields(self, ui_order):
         order_values = super()._order_fields(ui_order)
         order_values["to_invoice"] = True
+        order_values["card_redemption_order_uid"] = ui_order.get("uid")
         return order_values
 
     def _process_order(self, order, draft, existing_order):
@@ -128,6 +147,8 @@ class PosOrder(models.Model):
 
         pos_order = self.browse(res).exists()
         if pos_order and pos_order.partner_id:
+            if not pos_order.loyalty_points_processed:
+                pos_order.partner_id._consume_verified_pos_redemption(pos_order)
             pos_order = pos_order.sudo()
             partner = pos_order.partner_id
             partner._process_card_purchase(pos_order)
@@ -136,6 +157,10 @@ class PosOrder(models.Model):
             self.env['promotion.rule'].sudo().apply_rules(partner)
             if pos_order.state == "invoiced" and pos_order.account_move:
                 pos_order.account_move._send_cartes_invoice_email()
+        elif pos_order and pos_order.lines.filtered(
+            lambda line: line.discount > 0 and line.custom_discount_card_id
+        ):
+            raise UserError("A POS card redemption requires a customer.")
 
         return res
 

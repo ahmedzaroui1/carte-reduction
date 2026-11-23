@@ -7,7 +7,14 @@ _logger = logging.getLogger(__name__)
 class LoyaltyCartController(http.Controller):
     @http.route('/shop/apply_loyalty', type='json', auth='public', website=True)
     def apply_loyalty(self, line_id):
-        line = request.env['sale.order.line'].browse(int(line_id))
+        try:
+            line_id = int(line_id)
+        except (TypeError, ValueError):
+            return {'success': False}
+        order = request.website.sale_get_order()
+        line = request.env['sale.order.line'].browse(line_id)
+        if not order or not line.exists() or line.order_id != order:
+            return {'success': False}
         if line.exists():
             loyalty_info = line._get_loyalty_info()
             if loyalty_info['best_reward']:
@@ -35,18 +42,24 @@ class LoyaltyCartController(http.Controller):
         try:
             try:
                 # Début de la section verrouillée
-                db_lock = request.env.cr.savepoint()
                 order = request.website.sale_get_order(force_create=True)
                 if not order:
                     return {'success': False, 'error': 'Order not found'}
 
-                # Conversion des paramètres
-                force_discount = float(force_discount) if force_discount else 0
-                rule_id = int(rule_id) if rule_id else False
+                # La remise est recalculée depuis la règle serveur, jamais depuis la valeur cliente.
+                try:
+                    rule_id = int(rule_id) if rule_id else False
+                except (TypeError, ValueError):
+                    rule_id = False
+                rule = request.env['product.association'].browse(rule_id) if rule_id else False
+                server_discount = 0.0
+                if rule and rule.exists() and rule.card_id:
+                    reward = rule.card_id.loyalty_program_id.reward_ids[:1]
+                    server_discount = float(reward.discount or 0)
+                server_discount = max(0.0, min(100.0, server_discount))
 
-                # Stocker la remise forcée sur la commande
                 order.write({
-                    'forced_discount': force_discount,
+                    'forced_discount': server_discount,
                     'forced_discount_rule_id': rule_id
                 })
 
@@ -63,15 +76,12 @@ class LoyaltyCartController(http.Controller):
                 })
 
                 # Appliquer la remise forcée si spécifiée
-                if force_discount and rule_id:
-                    rule = request.env['product.association'].browse(rule_id)
-                    if rule.exists() and rule.card_id:
-                        reward = rule.card_id.loyalty_program_id.reward_ids[:1]
-                        lines = order.order_line.filtered(lambda l: not l.is_reward_line)
-                        lines.write({
-                            'discount': force_discount,
-                            'loyalty_reward_id': reward.id
-                        })
+                if server_discount and rule_id and reward:
+                    lines = order.order_line.filtered(lambda l: not l.is_reward_line)
+                    lines.write({
+                        'discount': server_discount,
+                        'loyalty_reward_id': reward.id
+                    })
 
                 # Forcer le recalcul
                 order._compute_amounts()
@@ -82,23 +92,22 @@ class LoyaltyCartController(http.Controller):
                     'amounts': {
                         'amount_total': order.amount_total,
                         'amount_untaxed': order.amount_untaxed,
-                        'discounts': {l.id: force_discount if force_discount else l.discount
+                        'discounts': {l.id: server_discount if server_discount else l.discount
                                       for l in order.order_line},
-                        'forced_discount': force_discount
+                        'forced_discount': server_discount
                     }
                 }
 
-                request.env.cr.commit()
                 return result
 
-            except Exception as lock_error:
+            except Exception:
                 request.env.cr.rollback()
-                _logger.error("Database error: %s", str(lock_error))
+                _logger.error("Database error while updating cart discounts")
                 return {'success': False, 'error': 'System busy, please retry'}
 
-        except Exception as e:
-            _logger.error("System error: %s", str(e))
-            return {'success': False, 'error': str(e)}
+        except Exception:
+            _logger.error("Unexpected system error in cart discount update")
+            return {'success': False, 'error': 'Request could not be processed'}
 
     @http.route('/shop/cart/update_amounts', type='json', auth="public", website=True)
     def update_amounts(self):

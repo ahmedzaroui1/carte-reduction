@@ -8,7 +8,7 @@
             <div class="modal-body">
                 <t t-raw="props.body"/>
                 <t t-if="props.otpMode">
-                    <label class="form-label" for="pos-card-otp">Code à 6 chiffres ou contenu du QR</label>
+                    <label class="form-label" for="pos-card-otp">Code OTP à 6 chiffres ou QR signé</label>
                     <input id="pos-card-otp" class="form-control" t-model="state.otp"
                            autocomplete="one-time-code"/>
                     <p class="mt-2 text-muted">Expiration dans <t t-esc="state.remaining"/> s.</p>

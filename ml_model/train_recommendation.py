@@ -16,16 +16,41 @@ class ProductAssociationGenerator(models.Model):
 
     def _get_historical_data(self):
         cutoff = fields.Datetime.now() - timedelta(days=365)
-        orders = self.env['pos.order'].search([
+        pos_orders = self.env['pos.order'].search([
             ('date_order', '>=', cutoff),
             ('state', 'in', ['paid', 'done', 'invoiced']),
         ])
+        sale_orders = self.env['sale.order'].search([
+            ('date_order', '>=', cutoff),
+            ('state', 'in', ['sale', 'done']),
+        ])
         transactions = []
-        for order in orders:
-            product_ids = list(dict.fromkeys(order.lines.mapped('product_id').ids))
+        for order in pos_orders:
+            product_ids = self._transaction_product_ids(order.lines)
+            if product_ids:
+                transactions.append([str(product_id) for product_id in product_ids])
+        for order in sale_orders:
+            product_ids = self._transaction_product_ids(order.order_line)
             if product_ids:
                 transactions.append([str(product_id) for product_id in product_ids])
         return transactions
+
+    @staticmethod
+    def _transaction_product_ids(order_lines):
+        product_ids = []
+        seen_ids = set()
+        for line in order_lines:
+            product = line.product_id
+            if not product or (
+                'reward_id' in line._fields and line.reward_id
+            ) or (
+                'is_reward_line' in line._fields and line.is_reward_line
+            ):
+                continue
+            if product.id not in seen_ids:
+                product_ids.append(product.id)
+                seen_ids.add(product.id)
+        return product_ids
 
     def _preprocess_data(self, transactions):
         from mlxtend.preprocessing import TransactionEncoder
@@ -41,7 +66,7 @@ class ProductAssociationGenerator(models.Model):
         _logger.info("Début de la génération des règles d'association")
         basket = self._preprocess_data(self._get_historical_data())
         if basket.empty or basket.shape[1] < 2:
-            _logger.warning("Pas assez de ventes POS pour générer des règles d'association.")
+            _logger.warning("Pas assez de transactions Web et POS pour générer des règles.")
             saved_count = 0
         else:
             frequent_itemsets = apriori(
@@ -77,33 +102,39 @@ class ProductAssociationGenerator(models.Model):
         new_values = []
         for _, rule in rules.iterrows():
             antecedent_ids = [int(product_id) for product_id in rule['antecedents']]
-            consequent_id = int(next(iter(rule['consequents'])))
             antecedents = self.env['product.product'].browse(antecedent_ids).exists()
-            associated_product = self.env['product.product'].browse(consequent_id).exists()
-            if len(antecedents) != len(antecedent_ids) or not associated_product:
+            if len(antecedents) != len(antecedent_ids):
                 _logger.warning(
-                    "Skipping association rule with missing catalog products: %s => %s",
+                    "Skipping association rule with missing antecedent products: %s",
                     antecedent_ids,
-                    consequent_id,
                 )
                 continue
-            if associated_product in antecedents:
-                continue
+            for consequent_id in sorted(int(value) for value in rule['consequents']):
+                associated_product = self.env['product.product'].browse(consequent_id).exists()
+                if not associated_product:
+                    _logger.warning(
+                        "Skipping association rule with missing consequent product: %s",
+                        consequent_id,
+                    )
+                    continue
+                if associated_product in antecedents:
+                    continue
 
-            new_values.append({
-                'antecedent_product_ids': [(6, 0, antecedents.ids)],
-                'associated_product_id': associated_product.id,
-                'confidence': rule['confidence'] * 100,
-                'support': rule['support'] * 100,
-                'card_id': self._get_appropriate_card(antecedents | associated_product),
-            })
+                new_values.append({
+                    'antecedent_product_ids': [(6, 0, antecedents.ids)],
+                    'associated_product_id': associated_product.id,
+                    'confidence': rule['confidence'] * 100,
+                    'support': rule['support'] * 100,
+                    'lift': rule['lift'],
+                    'is_generated': True,
+                    'card_id': self._get_appropriate_card(antecedents | associated_product),
+                })
 
         if not new_values:
             return 0
 
-        created_rules = association_model.create(new_values)
-        association_model.search([('id', 'not in', created_rules.ids)]).unlink()
-        return len(created_rules)
+        association_model.search([('is_generated', '=', True)]).unlink()
+        return len(association_model.create(new_values))
 
     def _get_appropriate_card(self, products):
         names = " ".join(products.mapped('name')).casefold()

@@ -13,14 +13,13 @@
                     <field name="carte_type" string="Type de Carte"/>
 
                     <!-- Remise de bienvenue -->
-                    <field name="discount" string="Remise de Bienvenue (%)"/>
+                    <field name="discount" string="Remise (%)"/>
 
                     <field name="date_debut"/>
                     <field name="date_expiration"/>
                     <field name="is_vip"/>
 
-                    <!-- Logo de la Carte -->
-                    <field name="logo" string="Logo de la Carte"/>
+                    <field name="image_1920" widget="image" class="oe_avatar"/>
 
 
                     <field name="nombre_utilisateurs_max" string="Nombre d'Utilisateurs Permis" />
@@ -84,13 +83,45 @@
 
 
  <!-- Vue en liste des cartes de réduction -->
+<record id="view_cartes_reduction_kanban" model="ir.ui.view">
+    <field name="name">cartes.reduction.kanban</field>
+    <field name="model">cartes.reduction</field>
+    <field name="arch" type="xml">
+        <kanban class="o_kanban_mobile">
+            <field name="name"/>
+            <field name="carte_type"/>
+            <field name="discount"/>
+            <field name="image_256"/>
+            <field name="active"/>
+            <field name="is_vip"/>
+            <templates>
+                <t t-name="kanban-box">
+                    <div class="oe_kanban_global_click o_kanban_record">
+                        <div class="o_kanban_image">
+                            <img t-att-src="kanban_image('cartes.reduction', 'image_256', record.id.raw_value)"
+                                 t-att-alt="record.name.value"/>
+                        </div>
+                        <div class="o_kanban_details">
+                            <strong><field name="name"/></strong>
+                            <div><field name="carte_type"/></div>
+                            <div><field name="discount"/>% de remise</div>
+                            <span t-if="record.is_vip.raw_value" class="badge text-bg-warning">VIP</span>
+                            <span t-if="record.active.raw_value" class="badge text-bg-success">Active</span>
+                        </div>
+                    </div>
+                </t>
+            </templates>
+        </kanban>
+    </field>
+</record>
+
 <record id="view_cartes_reduction_tree" model="ir.ui.view">
     <field name="name">cartes.reduction.tree</field>
     <field name="model">cartes.reduction</field>
     <field name="arch" type="xml">
         <tree string="Cartes de Réduction">
             <field name="name"/>  <!-- Nom de la carte -->
-            <field name="logo" widget="image" class="img-thumbnail"/>
+            <field name="image_128" widget="image" class="img-thumbnail"/>
 
             <field name="carte_type"/>  <!-- Type de carte -->
             <field name="conditions_ids" widget="many2many_tags" options="{'no_create': True}"  string="Conditions d'Obtention" />
@@ -108,7 +139,7 @@
 <record id="action_lister_cartes" model="ir.actions.act_window">
     <field name="name">Cartes de Réduction Disponibles</field>
     <field name="res_model">cartes.reduction</field>
-    <field name="view_mode">tree,form</field>
+    <field name="view_mode">kanban,tree,form</field>
     <field name="help" type="html">
         <p class="oe_view_nocontent_create">
             Cliquez sur "Créer" pour ajouter une nouvelle carte.

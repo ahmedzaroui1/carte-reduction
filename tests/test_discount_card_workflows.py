@@ -140,6 +140,7 @@ class TestDiscountCardWorkflows(TransactionCase):
             "consequents": frozenset([str(product_b.id)]),
             "confidence": 0.8,
             "support": 0.2,
+            "lift": 1.6,
         }])
 
         self.assertEqual(generator._save_rules_to_odoo(rules), 1)
@@ -147,6 +148,10 @@ class TestDiscountCardWorkflows(TransactionCase):
             ("associated_product_id", "=", product_b.id),
         ])
         self.assertEqual(saved.antecedent_product_ids, product_a)
+        self.assertAlmostEqual(saved.confidence, 80.0)
+        self.assertAlmostEqual(saved.support, 20.0)
+        self.assertAlmostEqual(saved.lift, 1.6)
+        self.assertTrue(saved.is_generated)
 
         empty_rules = pd.DataFrame(columns=rules.columns)
         self.assertEqual(generator._save_rules_to_odoo(empty_rules), 0)
@@ -157,6 +162,7 @@ class TestDiscountCardWorkflows(TransactionCase):
             "name": "Workflow sales product",
             "sale_ok": True,
             "list_price": 100,
+            "taxes_id": [(6, 0, [])],
         }).product_variant_id
         order = self.env["sale.order"].create({
             "partner_id": self.partner.id,
@@ -177,6 +183,7 @@ class TestDiscountCardWorkflows(TransactionCase):
             "name": "Workflow discounted sales product",
             "sale_ok": True,
             "list_price": 100,
+            "taxes_id": [(6, 0, [])],
         }).product_variant_id
         order = self.env["sale.order"].create({
             "partner_id": self.partner.id,
@@ -188,12 +195,12 @@ class TestDiscountCardWorkflows(TransactionCase):
             "price_unit": 100,
         })
         loyalty_info = {
-            "max_discount": 15,
+            "max_discount": 10,
             "best_reward": self.env["loyalty.reward"],
         }
 
         with patch.object(type(line), "_get_loyalty_info", return_value=loyalty_info):
             order._compute_amounts()
 
-        self.assertEqual(line.discount, 15)
-        self.assertEqual(order.amount_untaxed, 85)
+        self.assertEqual(line.discount, 10)
+        self.assertEqual(order.amount_untaxed, 90)

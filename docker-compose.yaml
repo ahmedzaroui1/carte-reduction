@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-odoo17}
       POSTGRES_USER: ${POSTGRES_USER:-odoo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - pg-data:/var/lib/postgresql/data
@@ -32,6 +32,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      CARTES_HMAC_SECRET: ${CARTES_HMAC_SECRET:?Set_CARTES_HMAC_SECRET_in_.env}
+      CARTES_FERNET_KEY: ${CARTES_FERNET_KEY:?Set_CARTES_FERNET_KEY_in_.env}
     command: >
       odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
       --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
@@ -58,20 +61,24 @@ services:
       - HOST=db
       - PORT=5432
       - USER=${POSTGRES_USER:-odoo}
-      - PASSWORD=${POSTGRES_PASSWORD:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
       - DATABASE=${POSTGRES_DB:-odoo17}
       - ADDONS_PATH=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-odoo}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-odoo}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
       - DB_DATABASE=${POSTGRES_DB:-odoo17}
+      - "CARTES_HMAC_SECRET=${CARTES_HMAC_SECRET:?Set_CARTES_HMAC_SECRET_in_.env}"
+      - "CARTES_FERNET_KEY=${CARTES_FERNET_KEY:?Set_CARTES_FERNET_KEY_in_.env}"
     volumes:
       - odoo-data:/var/lib/odoo
       - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf
     command: >
       odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
       --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
+      --db-filter=^odoo17$
+      -d ${POSTGRES_DB:-odoo17}
 
   e2e-web:
     build:
@@ -91,14 +98,16 @@ services:
       - HOST=db
       - PORT=5432
       - USER=${POSTGRES_USER:-odoo}
-      - PASSWORD=${POSTGRES_PASSWORD:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
       - DATABASE=odoo17_e2e_tnd
       - ADDONS_PATH=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-odoo}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-odoo}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
       - DB_DATABASE=odoo17_e2e_tnd
+      - "CARTES_HMAC_SECRET=${CARTES_HMAC_SECRET:?Set_CARTES_HMAC_SECRET_in_.env}"
+      - "CARTES_FERNET_KEY=${CARTES_FERNET_KEY:?Set_CARTES_FERNET_KEY_in_.env}"
     volumes:
       - odoo-data:/var/lib/odoo
       - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf

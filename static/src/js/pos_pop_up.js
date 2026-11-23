@@ -42,7 +42,9 @@ export class CustomAlertPopup extends AbstractAwaitablePopup {
             this.props.close();
             return;
         }
-        this.props.resolve(this.props.otpMode ? this.state.otp.trim() : true);
+        this.props.resolve(this.props.otpMode
+            ? { codeOrQr: this.state.otp.trim() }
+            : true);
 
         this.props.close();
     }

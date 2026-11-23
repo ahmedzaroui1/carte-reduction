@@ -31,18 +31,30 @@
                         <t t-foreach="attribution.carte_ids.filtered('active')" t-as="card">
                             <div class="col-md-6">
                                 <div t-attf-class="loyalty-digital-pass loyalty-digital-pass--#{card.carte_type}">
-                                    <div class="loyalty-digital-pass__topline">
-                                        <span>CARTE FIDÉLITÉ</span>
-                                        <span t-esc="card.carte_type.upper()"/>
-                                    </div>
-                                    <h3 t-esc="card.name"/>
-                                    <div class="loyalty-digital-pass__discount">
-                                        <span t-esc="card.discount"/>%
-                                        <small>de remise</small>
+                                    <img t-if="card.image_1920"
+                                         t-att-src="image_data_uri(card.image_1920)"
+                                         t-att-alt="card.name"
+                                         class="loyalty-digital-pass__art"/>
+                                    <div t-else="" class="loyalty-digital-pass__fallback">
+                                        <span class="text-uppercase">Carte fidélité</span>
+                                        <h3 t-esc="card.name"/>
+                                        <strong><span t-esc="'%.0f' % card.discount"/>% de remise</strong>
                                     </div>
                                     <div class="loyalty-digital-pass__details">
-                                        <span>Expire le</span>
-                                        <strong t-field="attribution.date_expiration"/>
+                                        <div class="loyalty-digital-pass__holder">
+                                            <div>
+                                                <span>Titulaire</span>
+                                                <strong t-esc="partner.name"/>
+                                            </div>
+                                            <div class="text-end">
+                                                <span>Référence</span>
+                                                <strong t-esc="attribution.reference"/>
+                                            </div>
+                                        </div>
+                                        <div class="mt-1">
+                                            <span>Expire le</span>
+                                            <strong t-field="attribution.date_expiration"/>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -66,30 +78,57 @@
 
                 <section class="mt-4">
                     <h2 class="h4">Progression des niveaux</h2>
-                    <p class="text-muted">Dépenses du mois : <strong><span t-esc="'%.2f' % monthly_spend"/> TND</strong></p>
-                    <div class="card mb-3">
+                    <p class="text-muted">Dépenses des 30 derniers jours : <strong><span t-esc="'%.2f' % monthly_spend"/> TND</strong></p>
+                    <div t-foreach="tier_progress" t-as="tier" class="card border-0 shadow-sm mb-3">
                         <div class="card-body">
-                            <h3 class="h5">Silver — 10%</h3>
-                            <label class="form-label">Dépenses : 300 TND</label>
-                            <div class="progress mb-2" role="progressbar" aria-label="Progression des dépenses Silver">
-                                <div class="progress-bar bg-secondary" t-attf-style="width: {{ progress['silver_spend'] }}%"/>
+                            <h3 class="h5">
+                                <span t-esc="tier['card'].name"/>
+                                — <span t-esc="'%.0f' % tier['card'].discount"/>%
+                            </h3>
+                            <label class="form-label">
+                                Dépenses : <span t-esc="'%.0f' % tier['spend_target']"/> TND
+                            </label>
+                            <div class="progress mb-2" role="progressbar"
+                                 t-att-aria-label="'Progression des dépenses ' + tier['card'].name"
+                                 aria-valuemin="0" aria-valuemax="100"
+                                 t-attf-aria-valuenow="{{ tier['spend_progress'] }}">
+                                <div t-att-class="'progress-bar bg-warning' if tier['type'] == 'gold' else 'progress-bar bg-secondary'"
+                                     t-attf-style="width: {{ tier['spend_progress'] }}%"/>
                             </div>
-                            <label class="form-label">Points : 600</label>
-                            <div class="progress" role="progressbar" aria-label="Progression des points Silver">
-                                <div class="progress-bar bg-secondary" t-attf-style="width: {{ progress['silver_points'] }}%"/>
+                            <label class="form-label">
+                                Points : <span t-esc="'%.0f' % tier['points_target']"/>
+                            </label>
+                            <div class="progress" role="progressbar"
+                                 t-att-aria-label="'Progression des points ' + tier['card'].name"
+                                 aria-valuemin="0" aria-valuemax="100"
+                                 t-attf-aria-valuenow="{{ tier['points_progress'] }}">
+                                <div t-att-class="'progress-bar bg-warning' if tier['type'] == 'gold' else 'progress-bar bg-secondary'"
+                                     t-attf-style="width: {{ tier['points_progress'] }}%"/>
                             </div>
                         </div>
                     </div>
-                    <div class="card">
-                        <div class="card-body">
-                            <h3 class="h5">Gold VIP — 15%</h3>
-                            <label class="form-label">Dépenses : 1 000 TND</label>
-                            <div class="progress mb-2" role="progressbar" aria-label="Progression des dépenses Gold">
-                                <div class="progress-bar bg-warning" t-attf-style="width: {{ progress['gold_spend'] }}%"/>
-                            </div>
-                            <label class="form-label">Points : 1 500</label>
-                            <div class="progress" role="progressbar" aria-label="Progression des points Gold">
-                                <div class="progress-bar bg-warning" t-attf-style="width: {{ progress['gold_points'] }}%"/>
+                </section>
+
+                <section t-if="points_rewards" class="mt-4">
+                    <h2 class="h4">Récompenses fidélité</h2>
+                    <div class="row g-3">
+                        <div t-foreach="points_rewards" t-as="reward" class="col-md-6">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body d-flex justify-content-between align-items-center gap-3">
+                                    <div>
+                                        <h3 class="h5 mb-1">
+                                            <span t-esc="'%.0f' % reward.discount"/> TND de remise
+                                        </h3>
+                                        <span class="text-muted">
+                                            <span t-esc="'%.0f' % reward.required_points"/> points
+                                        </span>
+                                    </div>
+                                    <span t-if="points_balance >= reward.required_points"
+                                          class="badge text-bg-success">Disponible à la caisse</span>
+                                    <span t-else="" class="badge text-bg-light">
+                                        Encore <span t-esc="'%.0f' % (reward.required_points - points_balance)"/> points
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>

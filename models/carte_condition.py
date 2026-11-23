@@ -47,10 +47,9 @@ class CarteCondition(models.Model):
         if self.env.context.get("skip_card_eval"):
             return 0.0
         today = fields.Date.context_today(self)
-        month_start = fields.Date.start_of(today, "month")
-        next_month = fields.Date.add(month_start, months=1)
-        start_datetime = datetime.combine(month_start, time.min)
-        end_datetime = datetime.combine(next_month, time.min)
+        period_start = fields.Date.subtract(today, days=30)
+        start_datetime = datetime.combine(period_start, time.min)
+        end_datetime = datetime.combine(fields.Date.add(today, days=1), time.min)
         commercial_partner = partner.commercial_partner_id
         company = self.env.company
         total = 0.0

@@ -5,15 +5,26 @@ from odoo.exceptions import ValidationError
 
 class CarteReduction(models.Model):
     _name = 'cartes.reduction'
+    _inherit = ['image.mixin']
     _description = "Cartes de Réduction des Clients"
 
-
+    image_1920 = fields.Image(
+        string="Image haute résolution",
+        max_width=1920,
+        max_height=1200,
+    )
+    image = fields.Image(
+        related="image_1920",
+        string="Illustration de carte",
+        readonly=False,
+    )
     name = fields.Char(string="Nom de la Carte", required=True)  # Nom de la carte
     code = fields.Char(string="Code")
     percent = fields.Float(string="Pourcentage de réduction")
     carte_type = fields.Selection([
         ('gold', 'Gold'),
         ('silver', 'Silver'),
+        ('platinum', 'Platinum'),
         ('standard', 'Standard'),
         ('premium', 'Premium'),
         ('bronze', 'Bronze')
@@ -49,6 +60,7 @@ class CarteReduction(models.Model):
             return False
         self.ensure_one()
         conditions = self.conditions_ids.filtered("active")
+        # Separate active conditions are alternative ways to qualify for a tier.
         return not conditions or any(condition.is_eligible(partner) for condition in conditions)
 
     def renouveler_carte(self):
@@ -87,4 +99,3 @@ class CarteReduction(models.Model):
     total_discount = fields.Float(compute='_compute_stats', store=False)
 
     # hedhi teb3a gift card
-

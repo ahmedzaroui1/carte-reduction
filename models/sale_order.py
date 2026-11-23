@@ -1,6 +1,29 @@
 from odoo import models, api , fields
+from odoo.exceptions import ValidationError
+from odoo.tools.safe_eval import safe_eval
 import logging
 _logger = logging.getLogger(__name__)
+
+
+def _safe_product_domain(expression):
+    if not expression or expression == "[]":
+        return []
+    try:
+        domain = safe_eval(expression, globals_dict={}, locals_dict={})
+    except (ValueError, SyntaxError):
+        raise ValidationError("Invalid product reward domain.")
+    if not isinstance(domain, list):
+        raise ValidationError("Invalid product reward domain.")
+    allowed_operators = {"=", "!=", "in", "not in", "<", ">", "<=", ">="}
+    for condition in domain:
+        if not (
+            isinstance(condition, (list, tuple))
+            and len(condition) == 3
+            and isinstance(condition[0], str)
+            and condition[1] in allowed_operators
+        ):
+            raise ValidationError("Invalid product reward domain.")
+    return domain
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
@@ -64,7 +87,7 @@ class SaleOrder(models.Model):
                             if reward.reward_product_ids and product in reward.reward_product_ids:
                                 is_applicable = True
                             elif reward.reward_product_domain and reward.reward_product_domain != '[]':
-                                domain = eval(reward.reward_product_domain) + [('id', '=', product.id)]
+                                domain = _safe_product_domain(reward.reward_product_domain) + [('id', '=', product.id)]
                                 is_applicable = bool(self.env['product.product'].search_count(domain))
                             else:
                                 is_applicable = True
@@ -302,6 +325,10 @@ class SaleOrder(models.Model):
     def _apply_best_loyalty(self):
         """Applique la meilleure remise de fidélité disponible"""
         self.ensure_one()
+        best_loyalty = self._get_best_loyalty_program()
+        card = best_loyalty[1] if best_loyalty else self.env['cartes.reduction']
+        if self.applied_discount_card_id != card:
+            self.applied_discount_card_id = card
         for line in self.order_line:
             if not line.is_reward_line:
                 loyalty_info = line._get_loyalty_info()

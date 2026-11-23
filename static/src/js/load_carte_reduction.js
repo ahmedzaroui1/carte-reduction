@@ -18,24 +18,21 @@ const originalRemoveOrderline = Order.prototype.remove_orderline;
 
 patch(Order.prototype, {
     set_partner(partner) {
+        const previousPartnerId = this.get_partner()?.id;
         originalSetPartner.call(this, partner);
+        if (previousPartnerId !== partner?.id) {
+            this.cardDiscountVerifiedPartnerId = null;
+            this.cardDiscountVerifiedCardId = null;
+            this.get_orderlines()
+                .filter(line => !line.is_reward_line)
+                .forEach(line => line.set_discount(0));
+        }
 
-        if (partner) {
-            console.log("Client sélectionné :", partner.name, "| ID :", partner.id);
-
-            const pos = this.pos;
-
-            if (!pos) {
-                console.error("❌ pos est undefined dans Order");
-                return;
-            }
-
-            const cartes = pos.getCartesByClient(partner.id);
-            console.log("👉 Cartes du client :", cartes);
-
-            const bestCard = pos.getBestDiscountCard(cartes, this);
-        } else {
-            console.log("Client désélectionné.");
+        if (partner && this.pos) {
+            const cards = this.pos.getCartesByClient(partner.id);
+            this.best_discount_card = this.pos.getBestDiscountCard(cards, this);
+        } else if (this.pos) {
+            this.best_discount_card = null;
         }
     },
 });
@@ -54,27 +51,10 @@ patch(Order.prototype, {
     _recomputeDiscounts() {
         const client = this.get_partner();
         if (!client || !this.pos) return;
-            // 1. Si un programme est forcé (via suggestion), l'utiliser directement
-        if (this.best_discount_card?.is_forced) {
-            console.log("💳 Application de la carte forcée :", this.best_discount_card.name);
-            this._applyDiscounts(this.best_discount_card);
-            return;
-        }
-
-        // 1. Récupération des cartes valides
-        const cartes = this.pos.getCartesByClient(client.id) || [];
-        const bestCard = this.pos.getBestDiscountCard?.(cartes, this);
-
-        // 2. Nettoyage des anciennes remises
+        const cards = this.pos.getCartesByClient(client.id) || [];
+        this.best_discount_card = this.pos.getBestDiscountCard?.(cards, this);
         this._clearExistingDiscounts();
-
-        // 3. Application des nouvelles remises
-        if (bestCard) {
-            console.log("💳 Application de la carte :", bestCard.card_name);
-            this._applyDiscounts(bestCard);
-        } else {
-            console.log("🔙 Réinitialisation des remises");
-        }
+        this._applyVerifiedCardDiscount();
     },
 
     _clearExistingDiscounts() {
@@ -90,33 +70,29 @@ patch(Order.prototype, {
     },
 
     _applyDiscounts(bestCard) {
-        const program = bestCard.program_used;
-
-        if (program.reward_type === 'order') {
-            // Cas 1: Remise globale
-            console.log("🔵 Application remise globale :", program.reward_discount + "%");
-            this._applyGlobalDiscount(program.reward_discount);
-
-        } else if (program.reward_type === 'specific') {
-            // Cas 2: Remise spécifique par produit
-            console.log("🟢 Application remises spécifiques");
-            this._applySpecificDiscounts(program.product_discounts);
-        }
+        this._applyVerifiedCardDiscount();
     },
 
     _applyGlobalDiscount(discountValue) {
-        this.get_orderlines()
-            .filter(line => !line.is_reward_line)
-            .forEach(line => line.set_discount(discountValue));
+        this._applyVerifiedCardDiscount();
     },
 
     _applySpecificDiscounts(productDiscounts) {
-        Object.entries(productDiscounts || {}).forEach(([productId, discountData]) => {
-            const discountValue = discountData.reward.discount;
-            this.get_orderlines()
-                .filter(line => line.product.id === parseInt(productId))
-                .forEach(line => line.set_discount(discountValue));
-        });
+        this._applyVerifiedCardDiscount();
+    },
+
+    _applyVerifiedCardDiscount() {
+        const partner = this.get_partner();
+        const card = partner && this.pos?.getHighestTierCardByClient(partner.id);
+        const verified = partner
+            && this.cardDiscountVerifiedPartnerId === partner.id
+            && card;
+        for (const line of this.get_orderlines()) {
+            if (!line.is_reward_line) {
+                line.set_discount(verified ? Number(card.discount) || 0 : 0);
+            }
+        }
+        return Boolean(verified);
     },
 
 
@@ -131,36 +107,9 @@ patch(Order.prototype, {
             .filter((line) => line.get_unit_price() < 0 && line.product?.is_reward_line)
             .forEach((line) => this.remove_orderline(line));
 
-        // Réinitialiser toutes les remises
-        this.get_orderlines().forEach(line => {
-            line.set_discount(0);
-        });
-
-        // Calculer la meilleure carte
         const cartes = this.pos.getCartesByClient(client.id);
-        const bestCard = this.pos.getBestDiscountCard(cartes, this);
-        this.best_discount_card = bestCard;
-
-        // Appliquer les remises
-        if (bestCard?.program_used) {
-            if (bestCard.program_used.reward_type === 'order') {
-                // Remise globale
-                const discountValue = parseFloat(bestCard.program_used.reward_discount);
-                this.get_orderlines().forEach(line => {
-                    line.set_discount(discountValue);
-                });
-            } else if (bestCard.program_used.reward_type === 'specific') {
-                // Remises spécifiques
-                for (const [productId, { reward }] of Object.entries(bestCard.program_used.product_discounts || {})) {
-                    const discountValue = reward.discount;
-                    this.get_orderlines()
-                        .filter(line => line.product.id === parseInt(productId))
-                        .forEach(line => {
-                            line.set_discount(discountValue);
-                        });
-                }
-            }
-        }
+        this.best_discount_card = this.pos.getBestDiscountCard(cartes, this);
+        this._applyVerifiedCardDiscount();
         this._checkProductSuggestions();
         return result;
     },
@@ -247,38 +196,25 @@ patch(Order.prototype, {
 
     _applyBestDiscount() {
         const client = this.get_partner();
-        if (!client) {
-            console.log("Aucun client sélectionné - annulation du recalcul");
-            return;
-        }
-
-        console.log("🔍 Recherche de la meilleure remise...");
-
-        // 1. Supprimer les anciennes remises
-        this.get_orderlines()
-            .filter(line => line.is_reward_line)
-            .forEach(line => originalRemoveOrderline.call(this, line));
-
-        // 2. Réappliquer les remises
-        const pos = this.pos;
-        const cartes = pos.getCartesByClient(client.id);
-        const bestCard = pos.getBestDiscountCard(cartes, this);
-
-        if (bestCard?.program_used) {
-            console.log("💳 Application de la remise :", bestCard.card_name);
-            const { reward_type, reward_discount } = bestCard.program_used;
-
-            if (reward_type === 'order') {
-                this.get_orderlines()
-                    .filter(line => !line.is_reward_line)
-                    .forEach(line => line.set_discount(reward_discount));
-            }
-            // Ajouter ici la logique pour les remises spécifiques si nécessaire
-        }
+        if (!client) return;
+        const cards = this.pos.getCartesByClient(client.id);
+        this.best_discount_card = this.pos.getBestDiscountCard(cards, this);
+        this._applyVerifiedCardDiscount();
     },
-        // Patch les méthodes de récompense pour les désactiver automatiquement
     _applyReward(reward, coupon_id, args) {
-        console.log("[CUSTOM] Application auto de récompense bloquée");
+            const programId = Array.isArray(reward.program_id)
+                ? reward.program_id[0]
+                : reward.program_id?.id || reward.program_id;
+            const program = reward.program_id?.program_type
+                ? reward.program_id
+                : this.pos?.programs?.find(item => item.id === programId);
+            // Keep card coupons OTP-gated while native loyalty rewards enforce point balances.
+            if (
+                program?.program_type === "loyalty"
+                && program.name === "Cartes de Réduction - Points TND"
+            ) {
+                return super._applyReward(...arguments);
+            }
         return false;
     },
 
@@ -300,22 +236,7 @@ patch(Order.prototype, {
         const cartes = this.pos.getCartesByClient(client.id);
         const bestCard = this.pos.getBestDiscountCard(cartes, this);
         this.best_discount_card = bestCard;
-
-        if (bestCard?.program_used) {
-            const { reward_type, reward_discount } = bestCard.program_used;
-            const discountValue = parseFloat(reward_discount);
-
-            if (reward_type === 'order') {
-                this.get_orderlines().forEach(line => {
-                    line.set_discount(discountValue);
-                });
-            }
-            // Mise à jour de l'affichage
-            const discountElement = document.querySelector('.pos-discount');
-            if (discountElement) {
-                discountElement.innerText = `Remise ${bestCard.card_name}: ${discountValue}%`;
-            }
-        }
+        this._applyVerifiedCardDiscount();
     }
 });
 // Enregistrement dans le système Odoo 17
@@ -331,6 +252,7 @@ patch(PosStore.prototype, {
         this.cartes_attribution = loadedData['cartes.attribution'] || [];
         this.cartes_reduction = loadedData['cartes.reduction'] || [];
         this.loyalty_programs = loadedData['loyalty.program'] || [];
+        this.loyalty_cards = loadedData['loyalty.card'] || [];
         this.product_association_rules = loadedData['product.association'] || [];
         console.log("Attributions de cartes :", this.cartes_attribution);
         console.log("Cartes de réduction :", this.cartes_reduction);
@@ -339,16 +261,20 @@ patch(PosStore.prototype, {
     },
 
     getCartesByClient(clientId) {
-        console.log("Recherche des cartes pour le client ID:", clientId);
+        const partnerIds = this.getPartnerFamilyIds(clientId);
         const now = new Date();
         const nowTs = now.getTime();
 
         const cartes = this.cartes_attribution
-            .filter(attr => attr.client_id && attr.client_id[0] === clientId)
+            .filter(attr => (
+                attr.client_id
+                && partnerIds.has(attr.client_id[0])
+                && ['validated', 'renouvelé'].includes(attr.state)
+            ))
             .flatMap(attr => {
                 return (attr.carte_ids || []).map(carteId => {
                     const carte = this.cartes_reduction.find(c => c.id === carteId);
-                    if (!carte) return null;
+                    if (!carte || !carte.active || carte.state !== 'active') return null;
 
                     const programmes = carte.loyalty_program_id
                         ? this.loyalty_programs
@@ -381,19 +307,66 @@ patch(PosStore.prototype, {
                             }))
                         : [];
 
-                    return programmes.length > 0 ? {
+                    return {
                         id: carte.id,
                         name: carte.name,
+                        carte_type: carte.carte_type,
+                        discount: carte.discount,
                         date_attribution: attr.date_attribution,
                         date_expiration: attr.date_expiration,
-                        programs: programmes
-                    } : null;
+                        programs: programmes,
+                    };
                 });
             })
             .filter(carte => carte !== null);
 
-        console.log("🟢 Cartes filtrées (programmes valides) :", cartes);
         return cartes;
+    },
+
+    getPartnerFamilyIds(partnerId) {
+        const ids = new Set([partnerId]);
+        let partner = this.db.get_partner_by_id(partnerId);
+        while (partner?.parent_id) {
+            const parentId = Array.isArray(partner.parent_id)
+                ? partner.parent_id[0]
+                : partner.parent_id;
+            if (!parentId || ids.has(parentId)) break;
+            ids.add(parentId);
+            partner = this.db.get_partner_by_id(parentId);
+        }
+        return ids;
+    },
+
+    getHighestTierCardByClient(partnerId) {
+        const tierRank = {
+            bronze: 0,
+            standard: 1,
+            silver: 2,
+            gold: 3,
+            premium: 4,
+        };
+        return this.getCartesByClient(partnerId)
+            .filter(card => Object.hasOwn(tierRank, card.carte_type))
+            .sort((left, right) => (
+                tierRank[right.carte_type] - tierRank[left.carte_type]
+                || Number(right.discount) - Number(left.discount)
+                || left.id - right.id
+            ))[0] || null;
+    },
+
+    getLoyaltyPointsByClient(partnerId) {
+        const partnerIds = this.getPartnerFamilyIds(partnerId);
+        const pointsProgram = this.loyalty_programs.find(program => (
+            program.name === "Cartes de Réduction - Points TND"
+            && program.program_type === "loyalty"
+        ));
+        if (!pointsProgram) return 0;
+        return this.loyalty_cards
+            .filter(card => (
+                partnerIds.has(card.partner_id?.[0] || card.partner_id)
+                && (card.program_id?.[0] || card.program_id) === pointsProgram.id
+            ))
+            .reduce((total, card) => total + (Number(card.points) || 0), 0);
     },
 
     getBestDiscountCard(cards, order) {
