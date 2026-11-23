@@ -1,0 +1,17 @@
+<odoo>
+    <record id="view_order_form_discount_card" model="ir.ui.view">
+        <field name="name">sale.order.form.discount.card</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="applied_discount_card_id" readonly="state != 'draft'"/>
+                <field name="security_card_token" placeholder="Saisir ou scanner le token signé"
+                       readonly="state != 'draft'"/>
+                <button name="action_apply_secure_token" type="object"
+                        string="Appliquer le token sécurisé" class="oe_highlight"
+                        groups="base.group_user" invisible="state != 'draft'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
