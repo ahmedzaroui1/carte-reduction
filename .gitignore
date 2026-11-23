@@ -1,1 +1,16 @@
-.env
+/.env
+.env.*
+*.env
+*.log
+*.dump
+*.sql
+*.py[cod]
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+odoo.conf
+/backups/
+/logs/
