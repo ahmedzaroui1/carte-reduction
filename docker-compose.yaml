@@ -1,0 +1,121 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-odoo17}
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odoo} -d ${POSTGRES_DB:-odoo17}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  odoo-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cartes-reduction-odoo:17
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CARTES_HMAC_SECRET: ${CARTES_HMAC_SECRET:?Set_CARTES_HMAC_SECRET_in_.env}
+      CARTES_FERNET_KEY: ${CARTES_FERNET_KEY:?Set_CARTES_FERNET_KEY_in_.env}
+    command: >
+      odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
+      --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
+      --init=base,cartes_reduction
+      --stop-after-init
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cartes-reduction-odoo:17
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      odoo-init:
+        condition: service_completed_successfully
+    ports:
+      - "${ODOO_PORT:-8069}:8069"
+    environment:
+      - HOST=db
+      - PORT=5432
+      - USER=${POSTGRES_USER:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
+      - DATABASE=${POSTGRES_DB:-odoo17}
+      - ADDONS_PATH=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-odoo}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
+      - DB_DATABASE=${POSTGRES_DB:-odoo17}
+      - "CARTES_HMAC_SECRET=${CARTES_HMAC_SECRET:?Set_CARTES_HMAC_SECRET_in_.env}"
+      - "CARTES_FERNET_KEY=${CARTES_FERNET_KEY:?Set_CARTES_FERNET_KEY_in_.env}"
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf
+    command: >
+      odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
+      --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
+      --db-filter=^odoo17$
+      -d ${POSTGRES_DB:-odoo17}
+
+  e2e-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cartes-reduction-odoo:17
+    container_name: cartes_reduction-e2e-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "8075:8069"
+    environment:
+      - HOST=db
+      - PORT=5432
+      - USER=${POSTGRES_USER:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
+      - DATABASE=odoo17_e2e_tnd
+      - ADDONS_PATH=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-odoo}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_is_required}
+      - DB_DATABASE=odoo17_e2e_tnd
+      - "CARTES_HMAC_SECRET=${CARTES_HMAC_SECRET:?Set_CARTES_HMAC_SECRET_in_.env}"
+      - "CARTES_FERNET_KEY=${CARTES_FERNET_KEY:?Set_CARTES_FERNET_KEY_in_.env}"
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./odoo.conf:/mnt/extra-addons/cartes_reduction/odoo.conf
+    command: >
+      odoo -c /mnt/extra-addons/cartes_reduction/odoo.conf
+      --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/var/lib/odoo/addons/17.0,/opt/odoo-addons
+      -d odoo17_e2e_tnd
+
+volumes:
+  pg-data:
+  odoo-data:

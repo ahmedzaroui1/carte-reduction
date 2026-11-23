@@ -1,0 +1,75 @@
+<odoo>
+    <record id="view_cartes_client_security_tree" model="ir.ui.view">
+        <field name="name">cartes.client.security.tree</field>
+        <field name="model">cartes.client</field>
+        <field name="arch" type="xml">
+            <tree string="Clients">
+                <field name="name"/>
+                <field name="prenom"/>
+                <field name="num_telephone"/>
+                <field name="cin_masked"/>
+                <field name="carte_ids" widget="many2many_tags"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_cartes_client_security_form" model="ir.ui.view">
+        <field name="name">cartes.client.security.form</field>
+        <field name="model">cartes.client</field>
+        <field name="arch" type="xml">
+            <form string="Client">
+                <header>
+                    <button name="action_reveal_cin" type="object" string="Révéler CIN"
+                            class="btn-secondary"
+                            groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="prenom"/>
+                        <field name="num_telephone"/>
+                        <field name="cin_masked" readonly="1"/>
+                        <field name="cin" placeholder="Saisir une nouvelle CIN"
+                               groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+                        <field name="carte_ids" widget="many2many_tags"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cartes_clients_secure" model="ir.actions.act_window">
+        <field name="name">Clients et CIN masquées</field>
+        <field name="res_model">cartes.client</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="view_partner_cin_security_form" model="ir.ui.view">
+        <field name="name">res.partner.cin.security.form</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="Données personnelles protégées">
+                    <field name="cin_masked" readonly="1"/>
+                    <field name="cin" placeholder="Saisir une nouvelle CIN"
+                           groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+                    <button name="action_reveal_cin" type="object" string="Révéler CIN"
+                            class="btn-secondary"
+                            groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_cin_security_tree" model="ir.ui.view">
+        <field name="name">res.partner.cin.security.tree</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="inside">
+                <field name="cin_masked"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

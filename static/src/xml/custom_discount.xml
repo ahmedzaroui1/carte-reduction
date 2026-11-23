@@ -1,0 +1,42 @@
+<templates xml:space="preserve">
+    <t t-name="custom_discount.OrderlinePatch" t-inherit="point_of_sale.Orderline" t-inherit-mode="extension">
+        <xpath expr="//ul[contains(@class, 'info-list')]" position="inside">
+            <li class="custom-discount-line text-muted fst-italic">
+                <t t-if="line.discount">
+                    <small>
+                        <i>Remise carte : <t t-esc="line.discount"/>%</i>
+                    </small>
+                </t>
+            </li>
+        </xpath>
+    </t>
+
+    <t t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension" owl="1">
+        <xpath expr="//t[@t-set-slot='details']" position="inside">
+            <div t-if="cardDiscountPreview"
+                 class="alert alert-info d-flex flex-column gap-1 mx-2 mb-2 py-2 px-3"
+                 role="status">
+                <div class="d-flex justify-content-between gap-2">
+                    <strong>
+                        Carte <t t-esc="cardDiscountPreview.tier"/> :
+                        -<t t-esc="cardDiscountPreview.discount"/>%
+                    </strong>
+                    <span>
+                        Points : <t t-esc="cardDiscountPreview.points.toFixed(2)"/>
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between gap-2">
+                    <span>
+                        Total initial :
+                        <t t-esc="env.utils.formatCurrency(cardDiscountPreview.originalTotal)"/>
+                    </span>
+                    <strong>
+                        Après remise :
+                        <t t-esc="env.utils.formatCurrency(cardDiscountPreview.discountedTotal)"/>
+                    </strong>
+                </div>
+            </div>
+        </xpath>
+    </t>
+</templates>
+

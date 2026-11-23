@@ -1,0 +1,46 @@
+<odoo>
+    <!-- Menu racine -->
+<!-- Vue Graphique -->
+<record id="view_dashboard_product_sales_graph" model="ir.ui.view">
+    <field name="name">dashboard.product.sales.graph</field>
+    <field name="model">dashboard.product.sales</field>
+    <field name="arch" type="xml">
+        <graph string="Ventes produits Web + POS (TND)" type="bar">
+            <field name="product_id"/>
+            <field name="total_qty" type="measure"/>
+            <field name="total_revenue" type="measure"/>
+        </graph>
+    </field>
+</record>
+
+<!-- Vue Tree -->
+<record id="view_dashboard_product_sales_tree" model="ir.ui.view">
+    <field name="name">dashboard.product.sales.tree</field>
+    <field name="model">dashboard.product.sales</field>
+    <field name="arch" type="xml">
+        <tree string="Ventes produits Web + POS (TND)">
+            <field name="product_id"/>
+            <field name="currency_id" invisible="1"/>
+            <field name="total_qty"/>
+            <field name="total_revenue"/>
+            <field name="average_price"/>
+        </tree>
+    </field>
+</record>
+
+<!-- Action -->
+<record id="action_dashboard_product_sales_graph" model="ir.actions.act_window">
+    <field name="name">Ventes Produits Web + POS (TND)</field>
+    <field name="res_model">dashboard.product.sales</field>
+    <field name="view_mode">graph,tree</field>
+    <field name="view_id" ref="view_dashboard_product_sales_graph"/>
+</record>
+
+<!-- Menu -->
+<menuitem id="menu_dashboard_product_sales_graph"
+          name="Top Produits (Global)"
+          parent="menu_dashboard_vente_root"
+          action="action_dashboard_product_sales_graph"
+          sequence="30"/>
+
+</odoo>

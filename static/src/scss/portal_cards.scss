@@ -1,0 +1,95 @@
+.loyalty-points-balance {
+    display: grid;
+    gap: .15rem;
+    padding: .8rem 1.1rem;
+    border: 1px solid #e6e8eb;
+    border-radius: .8rem;
+    background: #fff;
+
+    strong {
+        font-size: 1.2rem;
+    }
+}
+
+.loyalty-digital-pass {
+    position: relative;
+    min-height: 220px;
+    overflow: hidden;
+    border-radius: 1rem;
+    color: #fff;
+    box-shadow: 0 1rem 2rem rgba(20, 25, 30, .16);
+}
+
+.loyalty-digital-pass__art {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: inherit;
+}
+
+.loyalty-digital-pass__fallback {
+    display: flex;
+    min-height: 220px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 1.5rem;
+
+    h3 {
+        margin: 1rem 0;
+        color: inherit;
+    }
+}
+
+.loyalty-digital-pass__details {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(transparent, rgba(20, 25, 30, .7));
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+}
+
+.loyalty-digital-pass__holder {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+
+    span,
+    strong {
+        display: block;
+    }
+
+    span {
+        font-size: .7rem;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+}
+
+.loyalty-digital-pass--bronze {
+    background: linear-gradient(135deg, #9b613b, #d6a77a 52%, #71452d);
+}
+
+.loyalty-digital-pass--silver {
+    background: linear-gradient(135deg, #68717b, #d9dfe4 52%, #737d87);
+}
+
+.loyalty-digital-pass--gold {
+    background: linear-gradient(135deg, #88621a, #f1d27d 52%, #806019);
+}
+
+.loyalty-digital-pass--platinum {
+    background: linear-gradient(135deg, #1c2530, #aeb7c2 52%, #2d3743);
+}
+
+.loyalty-digital-pass--standard,
+.loyalty-digital-pass--premium {
+    background: linear-gradient(135deg, #34465d, #8294aa 52%, #28384d);
+}
+
+.loyalty-live-otp {
+    font-size: 2rem;
+    letter-spacing: .25em;
+}
