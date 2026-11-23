@@ -34,10 +34,9 @@ class Website(models.Model):
                             ]
             },
         }
-        print("Params for product association: %s", params)
+        params['search_params']['domain'] = [('active', '=', True)]
         return params
 
     def _get_ui_product_association(self, params):
         result = self.env['product.association'].search_read(**params['search_params'])
-        print("Loaded %d association rules", len(result))
         return result

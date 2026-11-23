@@ -1,0 +1,63 @@
+<odoo>
+    <template id="sotufab_storefront_layout" inherit_id="website.layout">
+        <xpath expr="//div[@id='wrapwrap']" position="attributes">
+            <attribute name="class" add="sotufab-storefront" separator=" "/>
+        </xpath>
+        <xpath expr="//div[@id='wrapwrap']/*[1]" position="before">
+            <section class="sotufab-brand-strip" aria-label="Sotufab Distribution Tunisie">
+                <a href="/shop" class="sotufab-brand-strip__identity">
+                    <img t-if="website.company_id.logo"
+                         t-att-src="'/logo.png?company=%s' % website.company_id.id"
+                         alt="Sotufab Distribution Tunisie"/>
+                    <span>
+                        <strong>Sotufab Distribution Tunisie</strong>
+                        <small>Votre boutique officielle</small>
+                    </span>
+                </a>
+                <a href="/shop" class="sotufab-brand-strip__cta">
+                    Découvrir la boutique <i class="fa fa-arrow-right" aria-hidden="true"/>
+                </a>
+            </section>
+        </xpath>
+        <xpath expr="//div[@id='wrapwrap']" position="inside">
+            <t t-set="sotufab_is_public" t-value="request.env.user._is_public()"/>
+            <t t-set="sotufab_orders_url"
+               t-value="'/web/login?redirect=%2Fmy%2Forders' if sotufab_is_public else '/my/orders'"/>
+            <t t-set="sotufab_cards_url"
+               t-value="'/web/login?redirect=%2Fmy%2Fcartes' if sotufab_is_public else '/my/cartes'"/>
+            <nav class="sotufab-quick-dock" aria-label="Accès rapide Sotufab">
+                <a class="sotufab-quick-dock__brand" href="/shop"
+                   aria-label="Sotufab Distribution Tunisie — Boutique">
+                    <img t-if="website.company_id.logo"
+                         t-att-src="'/logo.png?company=%s' % website.company_id.id"
+                         alt=""/>
+                    <span>Sotufab</span>
+                </a>
+                <a href="/shop"
+                   t-att-class="'sotufab-quick-dock__link is-active' if request.httprequest.path.startswith('/shop') else 'sotufab-quick-dock__link'">
+                    <i class="fa fa-shopping-basket" aria-hidden="true"/>
+                    <span>Boutique</span>
+                </a>
+                <a t-att-href="sotufab_orders_url"
+                   t-att-class="'sotufab-quick-dock__link is-active' if request.httprequest.path.startswith('/my/orders') else 'sotufab-quick-dock__link'"
+                   t-att-aria-label="'Mes Commandes — connexion requise' if sotufab_is_public else 'Mes Commandes'">
+                    <i class="fa fa-truck" aria-hidden="true"/>
+                    <span>Mes Commandes</span>
+                    <small t-if="sotufab_is_public">Connexion</small>
+                </a>
+                <a t-att-href="sotufab_cards_url"
+                   t-att-class="'sotufab-quick-dock__link is-active' if request.httprequest.path.startswith('/my/cartes') else 'sotufab-quick-dock__link'"
+                   t-att-aria-label="'Mes Cartes — connexion requise' if sotufab_is_public else 'Mes Cartes'">
+                    <i class="fa fa-credit-card" aria-hidden="true"/>
+                    <span>Mes Cartes</span>
+                    <small t-if="sotufab_is_public">Connexion</small>
+                </a>
+                <a href="/shop/cart" class="sotufab-quick-dock__link">
+                    <i class="fa fa-shopping-basket" aria-hidden="true"/>
+                    <span t-if="sotufab_is_public">Continuer en Invité / Panier</span>
+                    <span t-else="">Mon Panier</span>
+                </a>
+            </nav>
+        </xpath>
+    </template>
+</odoo>

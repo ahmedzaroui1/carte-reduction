@@ -7,8 +7,7 @@ import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
-import { CustomAlertPopup } from "@cartes_reduction/js/pos_pop_up";  // Assuming you've defined the CustomAlertPopup elsewhere
-import { markup } from "@odoo/owl";
+import { CustomAlertPopup } from "@cartes_reduction/js/pos_pop_up";
 
 async function verifyOrderCustomer(
     screen,
@@ -193,28 +192,25 @@ export class CreateButton extends Component {
             return;
         }
 
-        const htmlBestCard = `
-            <p><strong>Carte sélectionnée :</strong> ${bestCard.card_name}</p>
-            <p><strong>Remise totale :</strong> ${bestCard.total_discount} TND</p>
-            <p><strong>Programme utilisé :</strong> ${bestCard.program_used.program_name} — <strong>${bestCard.program_used.reward_type === 'specific' ? bestCard.total_discount + ' TND' : bestCard.program_used.reward_discount + '%'}</strong></p>
-            <hr/>
-            <p style="font-size: 0.9em; color: #666;">Cliquez sur "Voir toutes les cartes" pour afficher les autres cartes disponibles.</p>
-        `;
-
-        // Affiche la popup de la meilleure carte
+        const rewardAmount = bestCard.program_used.reward_type === "specific"
+            ? `${bestCard.total_discount} TND`
+            : `${bestCard.program_used.reward_discount}%`;
+        const body = [
+            `${_t("Carte sélectionnée")} : ${bestCard.card_name}`,
+            `${_t("Remise totale")} : ${bestCard.total_discount} TND`,
+            `${_t("Programme utilisé")} : ${bestCard.program_used.program_name} — ${rewardAmount}`,
+            _t('Cliquez sur "Voir toutes les cartes" pour afficher les autres cartes disponibles.'),
+        ].join("\n");
 
         this.popup.add(CustomAlertPopup, {
             title: _t("Meilleure carte pour cette commande"),
-            body: markup(htmlBestCard),
+            body,
             confirmText: _t("Voir toutes les cartes"),
             cancelText: _t("Fermer"),
         }).then(
             (confirmed) => {
                 if (confirmed) {
-                    console.log("Voir toutes les cartes : Déclenchement de showAllCards");
-                     this.showAllCards(client);
-                } else {
-                    console.log("Popup fermé");
+                    this.showAllCards(client);
                 }
             }
         );
@@ -223,8 +219,6 @@ export class CreateButton extends Component {
     /** Function to display all cards for a client. */
     showAllCards(client) {
         const cartes = this.pos.getCartesByClient(client.id);
-        console.log("Cartes de réduction pour le client : ", cartes); // Debugging
-
         if (cartes.length === 0) {
             this.popup.add(CustomAlertPopup, {
                 title: _t("Aucune carte disponible"),
@@ -233,28 +227,24 @@ export class CreateButton extends Component {
             return;
         }
 
-        const htmlContent = cartes.map(carte => {
-            let programsHtml = carte.programs.map(program => {
-                let rewardsHtml = program.rewards.map(reward =>
-                    `<li>🎁 ${reward.description} — <strong>${reward.discount}${reward.discount_mode === 'percent' ? '%' : ''}</strong></li>`
-                ).join("");
-                return `<p><strong>${program.name}</strong><ul>${rewardsHtml}</ul></p>`;
-            }).join("");
-            return `
-                <div style="margin-bottom: 1em;">
-                    <p><strong>Carte :</strong> ${carte.name}</p>
-                    <p><strong>Attribuée :</strong> ${carte.date_attribution}</p>
-                    <p><strong>Expiration :</strong> ${carte.date_expiration}</p>
-                    ${programsHtml}
-                    <hr/>
-                </div>
-            `;
-        }).join("");
+        const body = cartes.map(carte => {
+            const programDetails = carte.programs.flatMap(program => [
+                program.name,
+                ...program.rewards.map(reward => (
+                    `- ${reward.description} — ${reward.discount}${reward.discount_mode === "percent" ? "%" : ""}`
+                )),
+            ]);
+            return [
+                `${_t("Carte")} : ${carte.name}`,
+                `${_t("Attribuée")} : ${carte.date_attribution}`,
+                `${_t("Expiration")} : ${carte.date_expiration}`,
+                ...programDetails,
+            ].join("\n");
+        }).join("\n\n");
 
-        // Affiche la popup avec toutes les cartes
         this.popup.add(CustomAlertPopup, {
             title: _t("Cartes de réduction"),
-            body: markup(htmlContent),
+            body,
             confirmText: _t("Ok"),
             cancelText: _t("Fermer"),
         });

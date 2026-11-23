@@ -17,6 +17,19 @@ POINTS_PROGRAM_NAME = "Cartes de Réduction - Points TND"
 
 class TestPass1Loyalty(TransactionCase):
 
+    def setUp(self):
+        super().setUp()
+        tnd = self.env.ref("base.TND")
+        company = self.env["res.company"].search([
+            ("name", "=", "Sotufab Distribution Tunisie"),
+            ("currency_id", "=", tnd.id),
+        ], limit=1)
+        if company:
+            self.env = self.env(context={
+                **self.env.context,
+                "allowed_company_ids": company.ids,
+            })
+
     def _get_points_program(self):
         tnd = self.env.ref("base.TND")
         program = self.env["loyalty.program"].search([
@@ -296,22 +309,13 @@ class TestPass1Loyalty(TransactionCase):
             ("carte_type", "=", "bronze"),
             ("active", "=", True),
         ], limit=1)
-        bronze.write({"discount": 0.0, "percent": 0.0})
-        today = fields.Date.context_today(self.env["res.partner"])
-        self.env["cartes.attribution"].create({
-            "client_id": partner.id,
-            "carte_ids": [(6, 0, bronze.ids)],
-            "state": "validated",
-            "date_attribution": today,
-            "date_expiration": fields.Date.add(today, days=30),
-        })
         pricelist = self.env["product.pricelist"].create({
             "name": "Combined loyalty TND pricelist",
             "currency_id": self.env.ref("base.TND").id,
         })
         product = self.env["product.template"].create({
             "name": "Combined loyalty one TND product",
-            "list_price": 10.204081632653,
+            "list_price": 10.0,
             "taxes_id": [(5, 0, 0)],
         }).product_variant_id
         order = self.env["sale.order"].create({
@@ -322,10 +326,18 @@ class TestPass1Loyalty(TransactionCase):
             "order_id": order.id,
             "product_id": product.id,
             "product_uom_qty": 1.0,
-            "price_unit": 10.204081632653,
+            "price_unit": 10.0,
             "tax_id": [(5, 0, 0)],
         })
         self.assertAlmostEqual(order.amount_total, 10.0)
+        today = fields.Date.context_today(self.env["res.partner"])
+        self.env["cartes.attribution"].create({
+            "client_id": partner.id,
+            "carte_ids": [(6, 0, bronze.ids)],
+            "state": "validated",
+            "date_attribution": today,
+            "date_expiration": fields.Date.add(today, days=30),
+        })
 
         with patch.object(type(self.env["mail.mail"]), "send") as send_mail:
             partner._process_card_purchase(order)
@@ -395,22 +407,13 @@ class TestPass1Loyalty(TransactionCase):
             "discount": 5.0,
             "conditions_ids": [(6, 0, silver_condition.ids)],
         })
-        today = fields.Date.context_today(self.env["res.partner"])
-        bronze_attribution = self.env["cartes.attribution"].create({
-            "client_id": partner.id,
-            "carte_ids": [(6, 0, bronze.ids)],
-            "state": "validated",
-            "date_attribution": today,
-            "date_expiration": fields.Date.add(today, days=30),
-        })
-
         pricelist = self.env["product.pricelist"].create({
             "name": "Pass 1 TND test pricelist",
             "currency_id": tnd.id,
         })
         product = self.env["product.template"].create({
             "name": "Pass 1 ten TND product",
-            "list_price": 10.204081632653,
+            "list_price": 10.0,
             "taxes_id": [(5, 0, 0)],
         }).product_variant_id
         order = self.env["sale.order"].create({
@@ -421,10 +424,18 @@ class TestPass1Loyalty(TransactionCase):
             "order_id": order.id,
             "product_id": product.id,
             "product_uom_qty": 1.0,
-            "price_unit": 10.204081632653,
+            "price_unit": 10.0,
             "tax_id": [(5, 0, 0)],
         })
         self.assertAlmostEqual(order.amount_total, 10.0)
+        today = fields.Date.context_today(self.env["res.partner"])
+        bronze_attribution = self.env["cartes.attribution"].create({
+            "client_id": partner.id,
+            "carte_ids": [(6, 0, bronze.ids)],
+            "state": "validated",
+            "date_attribution": today,
+            "date_expiration": fields.Date.add(today, days=30),
+        })
 
         with patch.object(type(self.env["mail.mail"]), "send"):
             self.assertAlmostEqual(partner._process_card_purchase(order), 1.0)

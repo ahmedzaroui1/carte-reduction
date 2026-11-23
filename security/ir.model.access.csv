@@ -18,8 +18,6 @@ access_cartes_promotions_portal,access.cartes.promotions.portal,model_cartes_pro
 access_rapports_usage,access.rapports.usage,model_rapports_usage,cartes_reduction.cartes_manager_group,1,1,1,1
 access_rapports_usage_system,access.rapports.usage.system,model_rapports_usage,base.group_system,1,1,1,1
 access_rapports_usage_user,access.rapports.usage.user,model_rapports_usage,base.group_user,1,0,0,0
-access_website_user,access.website.user,website.model_website,,1,1,1,1
-access_sale_order_line_user,sale.order.line (User),model_sale_order_line,,1,1,1,1
 access_dashboard_vente,access_dashboard_vente,model_dashboard_vente,base.group_user,1,0,0,0
 access_dashboard_vente_manager,access.dashboard.vente.manager,model_dashboard_vente,cartes_reduction.cartes_manager_group,1,1,1,1
 access_dashboard_vente_system,access.dashboard.vente.system,model_dashboard_vente,base.group_system,1,1,1,1
@@ -81,8 +79,6 @@ access_res_partner_system,access.res.partner.system,model_res_partner,base.group
 access_res_partner_portal,access.res.partner.portal,model_res_partner,base.group_portal,1,0,0,0
 access_wizard_renouvellement,Access Wizard Renouvellement,model_wizard_renouvellement_carte,cartes_reduction.cartes_manager_group,1,1,1,1
 access_wizard_renouvellement_system,Access Wizard Renouvellement.system,model_wizard_renouvellement_carte,base.group_system,1,1,1,1
-access_pos_session,Access PosSession,model_pos_session,base.group_user,,1,1,1
-access_sale_order,Access Sale Order,model_sale_order,base.group_user,,1,1,1
 access_reward_selection_wizard,reward.selection.wizard,model_reward_selection_wizard,cartes_reduction.cartes_manager_group,1,1,1,1
 access_reward_selection_wizard_system,reward.selection.wizard.system,model_reward_selection_wizard,base.group_system,1,1,1,1
 access_promotion_rule,promotion.rule,model_promotion_rule,cartes_reduction.cartes_manager_group,1,1,1,1
@@ -92,8 +88,6 @@ access_customer_ml_cron_system,access.customer.ml.cron.system,model_customer_ml_
 access_product_association,product.association,model_product_association,cartes_reduction.cartes_manager_group,1,1,1,1
 access_product_association_system,product.association.system,model_product_association,base.group_system,1,1,1,1
 access_product_association_user,product.association.user,model_product_association,base.group_user,1,0,0,0
-access_product_association_portal,product.association.portal,model_product_association,base.group_portal,1,0,0,0
-access_product_association_public,product.association.public,model_product_association,base.group_public,1,0,0,0
 access_product_association_pos,product.association.pos,model_product_association,point_of_sale.group_pos_user,1,0,0,0
 access_product_association_generator_user,access.product.association.generator.user,model_product_association_generator,cartes_reduction.cartes_manager_group,1,1,1,1
 access_product_association_generator_system,access.product.association.generator.system,model_product_association_generator,base.group_system,1,1,1,1

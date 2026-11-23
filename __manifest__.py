@@ -1,10 +1,10 @@
 {
     'name': "Cartes de Réduction",
-    'version': '17.0.1.4.0',
-    'author': "sassi tasnim ",
+    'version': '17.0.1.5.0',
+    'author': "Sotufab Distribution Tunisie",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
-    'depends': ['base', 'sale_management','website' ,'account' , 'point_of_sale','loyalty', 'product','pos_loyalty','sale','sale_loyalty','web','website_sale', 'portal', 'payment_demo'],
+    'depends': ['base', 'sale_management', 'website', 'account', 'point_of_sale', 'loyalty', 'product', 'pos_loyalty', 'sale', 'sale_loyalty', 'web', 'website_sale', 'portal', 'auth_signup', 'payment_demo'],
     'external_dependencies': {
         'python': [
             'sklearn',
@@ -34,6 +34,8 @@
         'views/cartes_dashboard.xml',
         'views/product_template_view_inherit.xml',
         'views/sale_loyalty_templates.xml',
+        'views/invoice_reports.xml',
+        'views/storefront.xml',
         'views/website.xml',
         'views/portal_templates.xml',
         'views/dashboard_vente_views.xml',
@@ -62,7 +64,9 @@
 
             'cartes_reduction/static/src/js/website_sale.js',
             'cartes_reduction/static/src/js/portal_cards.js',
+            'cartes_reduction/static/src/js/password_policy.js',
             'cartes_reduction/static/src/scss/portal_cards.scss',
+            'cartes_reduction/static/src/scss/storefront.scss',
 
 
 

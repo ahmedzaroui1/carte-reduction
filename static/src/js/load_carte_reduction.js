@@ -42,7 +42,6 @@ patch(Order.prototype, {
 patch(Order.prototype, {
 
     removeOrderline(orderline) {
-        console.log("🗑️ Ligne supprimée :", orderline.product.display_name);
         const result = super.removeOrderline(...arguments);
         this._recomputeDiscounts();
         return result;
@@ -156,8 +155,6 @@ patch(Order.prototype, {
 
                             if (program && program.rewards?.length) {
                                 const reward = program.rewards[0];
-                                console.log(`Application temporaire du programme: ${program.name}`);
-
                                 // Construction de l'objet discount directement à partir du programme
                                 const discountData = {
                                     reward_type: reward.reward_type,
@@ -219,12 +216,10 @@ patch(Order.prototype, {
     },
 
     _applyProgramReward(program, reward) {
-        console.log("[CUSTOM] Programme auto bloqué :", program.name);
         return false;
     },
 
     _createDiscountLine(reward, price) {
-        console.log("[CUSTOM] Création ligne de remise bloquée");
         return null;
     },
 
@@ -254,10 +249,6 @@ patch(PosStore.prototype, {
         this.loyalty_programs = loadedData['loyalty.program'] || [];
         this.loyalty_cards = loadedData['loyalty.card'] || [];
         this.product_association_rules = loadedData['product.association'] || [];
-        console.log("Attributions de cartes :", this.cartes_attribution);
-        console.log("Cartes de réduction :", this.cartes_reduction);
-        console.log("Programmes de fidélité :", this.loyalty_programs);
-        console.log("Product rule :", this.product_association_rules);
     },
 
     getCartesByClient(clientId) {
@@ -476,7 +467,6 @@ patch(PosStore.prototype, {
             }
         }
 
-        console.log("💳 Meilleure carte pour cette commande :", bestCardDebug);
         return bestCardDebug;
     }
 });

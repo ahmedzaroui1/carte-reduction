@@ -104,6 +104,56 @@ class SaleOrder(models.Model):
             return best_program, best_card
         return None
 
+    def _get_association_reward(self, rule, require_associated_product=True):
+        self.ensure_one()
+        Reward = self.env['loyalty.reward']
+        if (
+            not rule
+            or not rule.exists()
+            or not rule.active
+            or not rule.card_id.active
+            or rule.card_id.state != 'active'
+        ):
+            return Reward
+
+        product_ids = set(
+            self.order_line.filtered(lambda line: not line.is_reward_line).product_id.ids
+        )
+        antecedent_ids = set(rule.antecedent_product_ids.ids)
+        if not antecedent_ids or not antecedent_ids.issubset(product_ids):
+            return Reward
+        if require_associated_product:
+            if rule.associated_product_id.id not in product_ids:
+                return Reward
+        elif rule.associated_product_id.id in product_ids:
+            return Reward
+
+        partner = self.partner_id.commercial_partner_id
+        active_card = partner._get_active_tier_card() if partner else False
+        if not active_card or active_card != rule.card_id:
+            return Reward
+
+        company = self.company_id or self.env.company
+        programs = rule.card_id.loyalty_program_id.filtered(
+            lambda program: (
+                program.active
+                and program.program_type == 'next_order_coupons'
+                and (not program.company_id or program.company_id == company)
+            )
+        )
+        rewards = programs.mapped('reward_ids').filtered(
+            lambda reward: (
+                reward.active
+                and reward.reward_type == 'discount'
+                and reward.discount_mode == 'percent'
+                and 0 < reward.discount <= min(active_card.discount, 100)
+            )
+        )
+        return rewards.sorted(
+            key=lambda reward: (reward.discount, reward.id),
+            reverse=True,
+        )[:1]
+
     def _compute_amounts(self):
         for order in self:
             order.order_line._apply_card_loyalty_discount()
@@ -203,10 +253,7 @@ class SaleOrder(models.Model):
     @api.onchange('partner_id')
     def _onchange_partner_id(self):
         if self.partner_id:
-            print(f"Client changé - ID: {self.partner_id.id}, Nom: {self.partner_id.name}")
             self._get_ui_cartes_data(self.partner_id.id)
-        else:
-            print("Aucun client sélectionné.")
 
     def _get_ui_cartes_data(self, partner_id):
         partner = self.env['res.partner'].browse(partner_id)
@@ -225,10 +272,6 @@ class SaleOrder(models.Model):
             'cartes_reduction': [(6, 0, reductions.ids)],
             'loyalty_programs': [(6, 0, programs.ids)],
         }
-
-        print("\n=== Résultat _get_ui_cartes_data ===")
-        print(result)
-        print("====================================\n")
 
         return result
 

@@ -4,6 +4,7 @@ class ProductAssociation(models.Model):
     _name = 'product.association'
     _description = 'Association de produits'
 
+    active = fields.Boolean(default=True)
     antecedent_product_ids = fields.Many2many('product.product', string="Produits de base")
     associated_product_id = fields.Many2one('product.product', string="Produit associé", required=True)
     confidence = fields.Float(string='Confiance (%)', required=True)

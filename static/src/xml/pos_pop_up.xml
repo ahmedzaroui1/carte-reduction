@@ -6,7 +6,7 @@
                 <h5 class="modal-title"><t t-esc="props.title"/></h5>
             </div>
             <div class="modal-body">
-                <t t-raw="props.body"/>
+                <div style="white-space: pre-line"><t t-esc="props.body"/></div>
                 <t t-if="props.otpMode">
                     <label class="form-label" for="pos-card-otp">Code OTP à 6 chiffres ou QR signé</label>
                     <input id="pos-card-otp" class="form-control" t-model="state.otp"

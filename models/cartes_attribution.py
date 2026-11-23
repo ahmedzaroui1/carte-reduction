@@ -193,19 +193,30 @@ class AttributionCarte(models.Model):
 
         for card in self:
             card_names = ", ".join(card.carte_ids.mapped("name"))
-            # Envoyer l'email
+            subject = f"Votre carte {card_names} est expirée"
+            message = (
+                f"Votre carte {card_names} est expirée depuis le "
+                f"{card.date_expiration}. Pour la renouveler, contactez notre "
+                "service client."
+            )
+            email_from = (
+                self.env.company.email_formatted
+                or self.env.company.partner_id.email_formatted
+                or self.env.user.email_formatted
+            )
+            if card.client_id.email and not email_from:
+                raise UserError(
+                    "Aucune adresse d'expédition n'est configurée pour l'entreprise."
+                )
             mail_values = {
-                'subject': f"Votre carte {card_names} est expirée",
-                'body_html': f"""
-                    <div>
-                        <p>Bonjour {card.client_id.name},</p>
-                        <p>Votre carte {card_names} est expirée depuis le {card.date_expiration}.</p>
-                        <p>Pour renouveler, contactez notre service client.</p>
-                        <p>Cordialement,<br/>L'équipe {self.env.company.name}</p>
-                    </div>
-                """,
+                'subject': subject,
+                'body_html': card.client_id._render_loyalty_email(
+                    subject,
+                    message,
+                    card=card.carte_ids[:1],
+                ),
                 'email_to': card.client_id.email,
-                'email_from': self.env.user.email,
+                'email_from': email_from,
             }
             if card.client_id.email:
                 mail = Mail.with_context(skip_card_eval=True).create(mail_values)

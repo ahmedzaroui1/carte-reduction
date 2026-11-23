@@ -131,8 +131,19 @@ class TestPass2SetupAndInvoices(TransactionCase):
         self.assertIn("/my/cartes", welcome_mail.body_html)
 
     def test_ttc_tax_is_company_default_and_applies_to_sale_products(self):
-        product = self.env["product.template"].create({
+        tnd = self.env.ref("base.TND")
+        company = self.env["res.company"].search([
+            ("name", "=", "Sotufab Distribution Tunisie"),
+            ("currency_id", "=", tnd.id),
+        ], limit=1)
+        self.assertTrue(company, "A TND Sotufab company is required for this test.")
+        self.env = self.env(context={
+            **self.env.context,
+            "allowed_company_ids": company.ids,
+        })
+        product = self.env["product.template"].with_company(company).create({
             "name": "TTC hook coverage product",
+            "company_id": company.id,
             "sale_ok": True,
             "taxes_id": [(5, 0, 0)],
         })
@@ -146,6 +157,16 @@ class TestPass2SetupAndInvoices(TransactionCase):
         self.assertEqual(product.taxes_id, sales_tax)
 
     def test_e2e_seed_is_published_and_idempotent(self):
+        tnd = self.env.ref("base.TND")
+        company = self.env["res.company"].search([
+            ("name", "=", "Sotufab Distribution Tunisie"),
+            ("currency_id", "=", tnd.id),
+        ], limit=1)
+        self.assertTrue(company, "A TND Sotufab company is required for this test.")
+        self.env = self.env(context={
+            **self.env.context,
+            "allowed_company_ids": company.ids,
+        })
         first = configure_pass2_e2e(self.env)
         second = configure_pass2_e2e(self.env)
         expected = {
@@ -182,10 +203,13 @@ class TestPass2SetupAndInvoices(TransactionCase):
             "website_id": second["website"].id,
             "pricelist_id": second["pricelist"].id,
         })
+        self.assertEqual(order.company_id, company)
+        self.assertEqual(order.fiscal_position_id.company_id, company)
         self.assertEqual(
-            order.fiscal_position_id,
-            second["domestic_fiscal_position"],
+            order.fiscal_position_id.country_id,
+            self.env.ref("base.tn"),
         )
+        self.assertFalse(order.fiscal_position_id.vat_required)
         line = self.env["sale.order.line"].create({
             "order_id": order.id,
             "product_id": second["products"][0].product_variant_id.id,
@@ -374,8 +398,10 @@ class TestPass2SetupAndInvoices(TransactionCase):
             ("mail_message_id.subject", "=", f"Votre facture {invoice.name}"),
         ], limit=1)
         self.assertTrue(sent_mail)
-        self.assertIn("Programme fidélité", sent_mail.body_html)
-        self.assertIn("/my/cartes", sent_mail.body_html)
+        self.assertIn("TVA applicable", sent_mail.body_html)
+        self.assertNotIn("/static/img/cards/", sent_mail.body_html)
+        self.assertEqual(len(sent_mail.attachment_ids), 1)
+        self.assertEqual(sent_mail.attachment_ids.mimetype, "application/pdf")
 
     def test_pos_invoice_email_uses_selected_customer_address(self):
         partner = self.env["res.partner"].with_context(

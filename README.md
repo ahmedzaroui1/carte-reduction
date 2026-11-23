@@ -7,6 +7,8 @@ and POS redemption for Sotufab Distribution Tunisie.
 
 - Bronze, Silver, Gold VIP, and Platinum loyalty tiers
 - Website, Sales, POS, and portal loyalty integration
+- French invoice reports and customer invoice emails for Tunisian companies
+- Portal password policy and a Sotufab-branded responsive storefront
 - Customer RFM, CLV, churn, and Apriori analytics
 - Signed QR/OTP POS verification and immutable security audit
 - Docker Compose deployment for PostgreSQL and Odoo
@@ -27,22 +29,33 @@ credentials outside Git. Never publish test or production passwords.
 
 ## Tests
 
-Run module tests against a disposable database only:
+Restore production data to a disposable database before running module tests:
 
 ```bash
-docker compose exec web odoo \
+docker compose run --rm --no-deps web odoo \
   -c /mnt/extra-addons/cartes_reduction/odoo.conf \
-  -d odoo17_e2e \
+  --db-filter="^odoo17_disposable$" \
+  -d odoo17_disposable \
   --test-enable \
   --test-tags /cartes_reduction \
   --stop-after-init
 ```
 
-Before deployment, run tests in CI and use a separate database backup and
-restore procedure for production.
+Do not point this command at a live or shared E2E database. Back up PostgreSQL
+and the Odoo filestore before production upgrades.
 
 ## Security
 
+- Public loyalty suggestions are validated against the current cart, website,
+  active customer tier, and server-side reward configuration.
+- Passwords require at least eight characters, one uppercase letter, and one
+  digit.
+- Mailpit is a development/test sink. Its web and SMTP ports bind to loopback;
+  use an authenticated production SMTP server for customer delivery.
+- The disposable E2E web port also binds to loopback and should not be exposed
+  as a public storefront.
+- On a remote host, access Mailpit through an SSH tunnel rather than publishing
+  its unauthenticated UI to the network.
 - Use GitHub Actions or an approved CI runner for build, test, secret scanning,
   dependency scanning, and container scanning.
 - Store deployment credentials in GitHub Secrets or a secret manager.

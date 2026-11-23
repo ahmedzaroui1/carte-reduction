@@ -253,10 +253,18 @@ class ResPartner(models.Model):
         qr_data_uri=None,
     ):
         self.ensure_one()
-        base_url = (
-            self.env["ir.config_parameter"].sudo().get_param("web.base.url")
-            or "http://localhost:8069"
-        ).rstrip("/")
+        base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+        if not base_url:
+            raise UserError(
+                "Configurez l'URL publique du site avant l'envoi des e-mails."
+            )
+        base_url = base_url.rstrip("/")
+        company = self.env.company
+        brand_name = html.escape(company.name or "Sotufab Distribution Tunisie")
+        logo_url = html.escape(
+            f"{base_url}/logo.png?company={company.id}",
+            quote=True,
+        )
         if not card or getattr(card, "_name", False) != "cartes.reduction":
             card = self._get_active_tier_card()
         tier_labels = {
@@ -348,9 +356,13 @@ class ResPartner(models.Model):
 </head><body style="margin:0;padding:24px 12px;background:#f3f5f7;font-family:Arial,Helvetica,sans-serif;color:#243244">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse"><tr><td align="center">
 <table role="presentation" class="mail-card" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#fff;border-radius:16px;overflow:hidden">
-<tr><td class="mail-pad" style="padding:24px 32px;background:#172b4d;color:#fff">
-<div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.8">Programme fidélité</div>
-<div style="margin-top:6px;font-size:22px;font-weight:700">Cartes de Réduction</div></td></tr>
+<tr><td class="mail-pad" style="padding:24px 32px;background:#0F172A;color:#fff">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+<td><div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.8">Programme fidélité</div>
+<div style="margin-top:6px;font-size:20px;font-weight:700">{brand_name}</div></td>
+<td align="right"><img src="{logo_url}" alt="{brand_name}" width="150"
+style="display:block;width:150px;max-width:100%;height:auto"/></td>
+</tr></table></td></tr>
 <tr><td class="mail-pad" style="padding:28px 32px 12px">
 {tier_badge}<h1 style="margin:0 0 14px;font-size:24px;line-height:1.3;color:#172b4d">{safe_title}</h1>
 <p style="margin:0 0 18px;font-size:16px;line-height:1.6">{safe_message}</p>
@@ -379,8 +391,12 @@ class ResPartner(models.Model):
             email_from = (
                 self.env.user.email_formatted
                 or self.env.company.email_formatted
-                or "no-reply@cartes-reduction.test"
+                or self.env.company.partner_id.email_formatted
             )
+            if not email_from:
+                raise UserError(
+                    "Aucune adresse d'expédition n'est configurée pour l'entreprise."
+                )
             self.env["mail.mail"].sudo().with_context(skip_card_eval=True).create({
                 "subject": subject,
                 "body_html": self._render_loyalty_email(

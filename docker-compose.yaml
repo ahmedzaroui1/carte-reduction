@@ -20,8 +20,8 @@ services:
     image: axllent/mailpit
     restart: unless-stopped
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
   odoo-init:
     build:
@@ -93,7 +93,7 @@ services:
       mailpit:
         condition: service_started
     ports:
-      - "8075:8069"
+      - "127.0.0.1:8075:8069"
     environment:
       - HOST=db
       - PORT=5432

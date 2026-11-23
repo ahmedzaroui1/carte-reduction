@@ -9,10 +9,46 @@ from .models.security_utils import validate_security_secrets
 _logger = logging.getLogger(__name__)
 
 POINTS_PROGRAM_NAME = "Cartes de Réduction - Points TND"
+FRENCH_INVOICE_EMAIL_BODY = """
+<div style="margin:0;padding:0;font-size:14px;line-height:1.6;color:#0F172A">
+    <p>Bonjour <t t-out="object.partner_id.name or ''"/>,</p>
+    <p>
+        Votre facture
+        <strong t-out="object.name or ''"/>
+        est jointe à cet e-mail au format PDF.
+    </p>
+    <p>
+        Le document présente le montant hors taxes, la TVA applicable et le
+        total toutes taxes comprises en dinars tunisiens.
+    </p>
+    <p>Merci de votre confiance.<br/><t t-out="object.company_id.name or ''"/></p>
+</div>
+"""
+
+
+def configure_french_invoice_email_template(env):
+    french = env["res.lang"]._activate_lang("fr_FR")
+    if not french:
+        raise ValueError("The French (fr_FR) language is not available.")
+    template = env.ref(
+        "account.email_template_edi_invoice",
+        raise_if_not_found=False,
+    )
+    if template:
+        template.write({
+            "subject": "Votre facture (réf. {{ object.name or 'n/a' }})",
+            "lang": "fr_FR",
+            "body_html": FRENCH_INVOICE_EMAIL_BODY,
+        })
 
 
 def configure_pass1_data(env):
-    env = api.Environment(env.cr, SUPERUSER_ID, {})
+    company_id = env.company.id
+    env = api.Environment(
+        env.cr,
+        SUPERUSER_ID,
+        {"allowed_company_ids": [company_id]},
+    )
     mail_server_values = {
         "name": "Mailpit",
         "smtp_host": "mailpit",
@@ -326,11 +362,18 @@ def _get_tnd_sales_tax(env, company, tnd):
         ("amount", "=", 19.0),
     ], order="id", limit=1)
     if tax:
-        tax.write({
+        tax_values = {
             "name": "TVA 19%",
             "active": True,
             "price_include": True,
-        })
+        }
+        changed_values = {
+            field_name: value
+            for field_name, value in tax_values.items()
+            if tax[field_name] != value
+        }
+        if changed_values:
+            tax.write(changed_values)
     else:
         tax_group = env["account.tax.group"].search([
             ("country_id", "=", country.id),
@@ -359,12 +402,15 @@ def _get_tnd_sales_tax(env, company, tnd):
 
 
 def _apply_ttc_tax_to_sale_products(env, company, sales_tax):
-    company.write({"account_sale_tax_id": sales_tax.id})
+    if company.account_sale_tax_id != sales_tax:
+        company.write({"account_sale_tax_id": sales_tax.id})
     products = env["product.template"].with_company(company).search([
         ("sale_ok", "=", True),
         ("company_id", "in", [False, company.id]),
     ])
-    products.write({"taxes_id": [(6, 0, sales_tax.ids)]})
+    products.filtered(
+        lambda product: set(product.taxes_id.ids) != set(sales_tax.ids)
+    ).write({"taxes_id": [(6, 0, sales_tax.ids)]})
     return products
 
 
@@ -385,7 +431,12 @@ def configure_tunisian_ttc_taxes(env):
 
 
 def configure_pass2_e2e(env):
-    env = api.Environment(env.cr, SUPERUSER_ID, {})
+    company_id = env.company.id
+    env = api.Environment(
+        env.cr,
+        SUPERUSER_ID,
+        {"allowed_company_ids": [company_id]},
+    )
     company = env.company
     tnd = env.ref("base.TND")
     if company.currency_id != tnd:
@@ -475,6 +526,7 @@ def configure_pass2_e2e(env):
             "taxes_id": [(6, 0, sales_tax.ids)],
         }
         if product:
+            values.pop("company_id")
             product.write(values)
         else:
             product = env["product.template"].create(values)
@@ -519,6 +571,16 @@ def configure_pass2_e2e(env):
         ("name", "=", "Demo"),
         ("company_id", "=", company.id),
     ], limit=1)
+    if not demo_provider:
+        installed_demo = env["payment.provider"].search([
+            ("name", "=", "Demo"),
+            ("module_state", "=", "installed"),
+        ], order="id", limit=1)
+        if installed_demo:
+            demo_provider = installed_demo.copy({
+                "company_id": company.id,
+                "website_id": False,
+            })
     if not demo_provider or demo_provider.module_state != "installed":
         raise ValueError(
             "The payment_demo dependency must be installed before enabling Demo checkout."
@@ -543,3 +605,4 @@ def post_init_hook(env):
     validate_security_secrets()
     configure_pass1_data(env)
     configure_tunisian_ttc_taxes(env)
+    configure_french_invoice_email_template(env)

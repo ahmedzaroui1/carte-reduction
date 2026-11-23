@@ -1,0 +1,8 @@
+<odoo>
+    <template id="report_invoice_french" inherit_id="account.report_invoice">
+        <xpath expr="//t[@t-call='account.report_invoice_document']"
+               position="attributes">
+            <attribute name="t-lang">'fr_FR'</attribute>
+        </xpath>
+    </template>
+</odoo>

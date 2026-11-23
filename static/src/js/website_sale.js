@@ -17,7 +17,6 @@ publicWidget.registry.CartLoyaltyManager = publicWidget.Widget.extend({
     },
 
     start: function() {
-        console.log("[Loyalty] Manager initialized");
         this._checkSuggestions();
         return this._super.apply(this, arguments);
     },
@@ -47,7 +46,6 @@ publicWidget.registry.CartLoyaltyManager = publicWidget.Widget.extend({
             rule_id: this._forcedRuleId
         } : {};
 
-        console.log("[Loyalty] Updating discounts with params:", params);
         this.$el.addClass('o_loading');
 
         jsonrpc('/shop/cart/update_discounts', params)
@@ -147,8 +145,5 @@ _applySuggestion: function(ruleId) {
             }
         });
 
-        console.log("[Loyalty] UI updated with discount:",
-                   this._forcedDiscount || "best discount",
-                   "Amounts:", amounts);
     }
 });

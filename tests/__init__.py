@@ -5,3 +5,4 @@ from . import test_pass2
 from . import test_analytics
 from . import test_security_hardening
 from . import test_pos_verification
+from . import test_ui_security_polish

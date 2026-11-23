@@ -47,7 +47,7 @@ class PosSession(models.Model):
     def _loader_params_cartes_reduction(self):
         return {
             'search_params': {
-                'domain': [],
+                'domain': [('active', '=', True)],
                 'fields': [
                     'name',
                     'state',

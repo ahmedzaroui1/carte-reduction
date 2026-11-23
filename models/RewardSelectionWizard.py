@@ -32,7 +32,6 @@ class RewardSelectionWizard(models.TransientModel):
             rewards = self.env['loyalty.reward'].search([
                 ('program_id', '=', self.selected_program_id.id)
             ])
-            print("Rewards trouvés : ", rewards.ids)
             return {
                 'domain': {
                     'selected_reward_id': [('id', 'in', rewards.ids)]
