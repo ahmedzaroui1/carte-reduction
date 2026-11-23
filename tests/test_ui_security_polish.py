@@ -216,6 +216,13 @@ class TestPortalShopRedirect(HttpCase):
         self.assertEqual(response.status_code, 303)
         self.assertTrue(response.headers["Location"].endswith("/shop"))
 
+    def test_shop_renders_sotufab_theme_and_quick_access_dock(self):
+        response = self.url_open("/shop")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("sotufab-storefront", response.text)
+        self.assertIn("Sotufab Distribution Tunisie", response.text)
+        self.assertIn("sotufab-quick-dock", response.text)
+
     def test_signup_route_renders_password_policy_error_in_french(self):
         response = self.url_open("/web/signup")
         self.assertEqual(response.status_code, 200)

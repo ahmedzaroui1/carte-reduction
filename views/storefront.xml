@@ -1,7 +1,7 @@
 <odoo>
     <template id="sotufab_storefront_layout" inherit_id="website.layout">
         <xpath expr="//div[@id='wrapwrap']" position="attributes">
-            <attribute name="class" add="sotufab-storefront" separator=" "/>
+            <attribute name="t-attf-class" add="sotufab-storefront" separator=" "/>
         </xpath>
         <xpath expr="//div[@id='wrapwrap']/*[1]" position="before">
             <section class="sotufab-brand-strip" aria-label="Sotufab Distribution Tunisie">

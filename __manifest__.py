@@ -1,6 +1,6 @@
 {
     'name': "Cartes de Réduction",
-    'version': '17.0.1.5.0',
+    'version': '17.0.1.5.1',
     'author': "Sotufab Distribution Tunisie",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
