@@ -30,6 +30,10 @@ def configure_french_invoice_email_template(env):
     french = env["res.lang"]._activate_lang("fr_FR")
     if not french:
         raise ValueError("The French (fr_FR) language is not available.")
+    env["base.language.install"].create({
+        "lang_ids": [(6, 0, french.ids)],
+        "overwrite": False,
+    }).lang_install()
     template = env.ref(
         "account.email_template_edi_invoice",
         raise_if_not_found=False,

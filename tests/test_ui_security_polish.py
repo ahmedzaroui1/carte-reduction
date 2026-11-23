@@ -95,10 +95,11 @@ class TestPasswordAndEmailPolish(TransactionCase):
             ("amount_tax", ">", 0),
         ], order="id desc", limit=1)
         if posted_invoice:
-            report_html, _content_type = self.env.ref(
+            report = self.env.ref(
                 "account.account_invoices"
-            )._render_qweb_html(
-                "account.report_invoice",
+            ).with_context(lang="fr_FR")
+            report_html, _content_type = report._render_qweb_html(
+                report.report_name,
                 posted_invoice.ids,
             )
             report_html = (
@@ -107,7 +108,11 @@ class TestPasswordAndEmailPolish(TransactionCase):
                 else report_html
             )
             self.assertIn(posted_invoice.name, report_html)
+            self.assertIn('lang="fr-FR"', report_html)
+            self.assertIn("Montant hors taxes", report_html)
             self.assertIn("TVA", report_html)
+            self.assertNotIn("Untaxed Amount", report_html)
+            self.assertNotIn("Invoice Date", report_html)
 
         recipient = self.env["res.partner"].with_context(
             skip_card_eval=True

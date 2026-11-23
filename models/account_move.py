@@ -96,7 +96,9 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                 raise UserError(
                     f"Aucune adresse d'expédition n'est définie pour {invoice.company_id.display_name}."
                 )
-            report = invoice.env.ref("account.account_invoices")
+            report = invoice.env.ref("account.account_invoices").with_context(
+                lang="fr_FR",
+            )
             pdf, _content_type = report._render_qweb_pdf(
                 report.report_name,
                 res_ids=invoice.ids,
