@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from odoo import fields
@@ -63,7 +64,42 @@ class TestPass2Otp(TransactionCase):
             issued["qr_token"]
         )
         self.assertFalse(replay["success"])
+        replay_event = self.env["cartes.reduction.security.audit"].search([
+            ("event_type", "=", "replay_blocked"),
+            ("partner_id", "=", self.partner.id),
+        ], limit=1)
+        self.assertTrue(replay_event)
+        self.assertNotIn(issued["qr_token"], replay_event.details or "")
         self.assertEqual(send_mail.call_count, 1)
+
+    def test_expired_unconsumed_otp_is_not_logged_as_replay(self):
+        with (
+            patch(
+                "odoo.addons.cartes_reduction.models.res_partner.secrets.randbelow",
+                return_value=123456,
+            ),
+            patch.object(type(self.env["mail.mail"]), "send"),
+        ):
+            issued = self.partner._issue_pos_otp()
+
+        self.partner.sudo().write({
+            "pos_otp_expires_at": fields.Datetime.now() - timedelta(seconds=61),
+        })
+        result = self.partner.with_user(self.pos_user).verify_pos_otp_or_qr(
+            issued["code"]
+        )
+
+        self.assertFalse(result["success"])
+        expired_event = self.env["cartes.reduction.security.audit"].search([
+            ("event_type", "=", "otp_expired"),
+            ("partner_id", "=", self.partner.id),
+        ], limit=1)
+        replay_event = self.env["cartes.reduction.security.audit"].search([
+            ("event_type", "=", "replay_blocked"),
+            ("partner_id", "=", self.partner.id),
+        ], limit=1)
+        self.assertTrue(expired_event)
+        self.assertFalse(replay_event)
 
     def test_pos_otp_limits_failed_attempts_and_requires_pos_group(self):
         with (

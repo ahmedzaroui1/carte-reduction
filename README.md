@@ -13,6 +13,35 @@ and POS redemption for Sotufab Distribution Tunisie.
 - Signed QR/OTP POS verification and immutable security audit
 - Docker Compose deployment for PostgreSQL and Odoo
 
+## Reverse proxy access
+
+- Nginx serves the customer storefront on port `8069` and the restricted
+  staff/POS portal on port `8090`.
+- Set `STAFF_BIND_IP` in the untracked `.env` to the server's private interface
+  address. The Nginx staff listener also allows only loopback, the local
+  Docker bridge gateway, and `192.168.108.0/24`; update this allowlist in
+  `nginx/odoo-security.conf` if the trusted staff network changes.
+- Keep Odoo's `web` service un-published on the host. Nginx is its only
+  externally reachable HTTP entry point.
+
+## Security monitoring and external audit seal
+
+- Provision the ignored `secrets/` files before starting the monitoring stack:
+  `sh scripts/provision_monitoring_secrets.sh`. The script is idempotent and
+  does not print secret values. Keep the directory mode `0700`; Docker Compose
+  mounts its source files read-only, and the Odoo entrypoint copies the audit
+  key and metrics token into a private `/run/secrets` tmpfs.
+- The audit seal is stored in the separate `audit-seal-data` volume. After
+  upgrading the module, an administrator must use **Initialiser le sceau
+  externe** once, then **Vérifier l'intégrité SHA-256**. Initialization refuses
+  to overwrite an existing seal.
+- Prometheus and Grafana bind to `MONITORING_BIND_IP` (default
+  `192.168.108.129`) and are intended for the trusted private network. Prometheus
+  requires Basic Auth; Grafana requires its generated administrator password.
+  Restrict these ports with the host firewall to the trusted LAN.
+- `/cartes_reduction/metrics` is denied on port `8069`; Prometheus scrapes it
+  through the restricted `8090` listener with a Bearer token.
+
 ## Local development
 
 Copy the environment template securely and provide real secrets:

@@ -1,0 +1,799 @@
+FULL PROJECT HANDOFF — CARTE DE REDUCTION / SOTUFAB
+Snapshot: 2026-11-25 12:27 Europe/Paris
+Repository: ahmedzaroui1/carte-reduction
+Purpose: give a new agent the project context and exact continuation state.
+
+======================================================================
+0. READ THIS FIRST — SOURCE OF TRUTH AND SAFETY
+======================================================================
+
+This file is a detailed handoff, not a substitute for checking the live
+repository, Odoo database, or running containers. It combines current direct
+observations with historical work reports. Items labelled "historical" or
+"verify" are not guaranteed to still match production.
+
+Before any code or database changes:
+1. Read this file, then run `git status --short` and inspect the current diff.
+2. Verify active Docker image, database, addon path, source mount, and module
+   version on the VM. The host checkout, image source, mounted addon path, and
+   local Windows checkout have differed before.
+3. Keep the existing uncommitted changes. Do not reset, checkout, clean, or
+   overwrite untracked files. Do not copy the full Windows repository over
+   production.
+4. Back up PostgreSQL and the Odoo filestore before production upgrades.
+5. Test upgrades and business logic on a disposable clone, not the live DB.
+6. Never expose passwords, `.env`, `odoo.conf`, API keys, Fernet/HMAC secrets,
+   demo-user credentials, private keys, or backup data in this file, logs,
+   Git, screenshots, or chat.
+7. Do not initiate real charges or confirm a real customer order during tests.
+   The payment provider described here is a Demo/test provider, not a gateway.
+8. Do not start or add CI/CD, Nginx, Prometheus, or Grafana unless the user
+   explicitly requests that scope. They are not active project deliverables.
+9. Do not commit or push without the user's explicit request. If committing is
+   later requested, exclude pre-existing `PROJECT_OVERVIEW.txt` unless asked.
+
+Some older handoffs and PROJECT_OVERVIEW.txt describe an aspirational setup
+as if GitLab CI, Bandit, Trivy, Nginx, Prometheus, and Grafana were already
+running. That is not supported by the current repository inventory. Treat the
+actual repository and container status below as authoritative for this date.
+
+======================================================================
+1. EXECUTIVE SNAPSHOT — WHERE WORK STOPPED
+======================================================================
+
+Product:
+- Custom Odoo 17 addon: `cartes_reduction`.
+- Business/demo company: Sotufab Distribution Tunisie.
+- Main Odoo database: `odoo17`.
+- VM: `odoo@192.168.108.129`.
+- Production URL: `http://192.168.108.129:8069`.
+- Active storefront: `http://192.168.108.129:8069/shop`.
+- Mailpit browser URL from the PC: `http://127.0.0.1:8025/` through SSH
+  local port forwarding to the VM's loopback interface.
+
+Current code/deployment snapshot:
+- Current local `main`, `origin/main`, and remote checkout HEAD all reported
+  commit `4e0b621667732e140e7480aa902b91ca6a4b9648`.
+- The marketplace work is NOT committed. Local and remote checkout each show
+  changes in `__manifest__.py`, `controllers/auth.py`, `hooks.py`,
+  `static/src/scss/storefront.scss`, `tests/test_ui_security_polish.py`, and
+  `views/storefront.xml`, plus the untracked migration directory
+  `migrations/17.0.1.6.0/`.
+- The older `PROJECT_OVERVIEW.txt` is untracked and was not part of this task.
+- Manifest version: `17.0.1.6.0`.
+- Production Odoo module was upgraded to `17.0.1.6.0` and its web container
+  restarted. Upgrade command exited successfully. It emitted unrelated
+  existing warnings (manifest license, deprecated Odoo field `states`,
+  view-accessibility/XPath warnings, and docstring diagnostics); those were
+  not cleaned up as part of the storefront CSS fix.
+- The production image was rebuilt from the remote checkout. The long-running
+  E2E container still used an older image at the last inspection; recreate it
+  before using it to test the newest source.
+
+Last direct browser smoke check after the final fix:
+- `/shop`: HTTP 200; no CSS fallback banner; Sotufab sticky header and hero
+  styles active; no page JavaScript errors observed.
+- `/shop/cart`: HTTP 200; no CSS fallback banner; same custom header; no page
+  JavaScript errors observed.
+- Root `/` redirects to `/shop`.
+- A public/anonymous browser cannot inspect authenticated `/my/cartes` or
+  `/my/orders`; portal tests had previously exercised those with an
+  authenticated test user. Do not claim a fresh visual check of those pages.
+- The `/shop/cart` body is French, but browser title was observed as
+  "Shopping Cart | My Website". Recheck page title/localization if the user
+  still expects every metadata string to be French.
+
+Test status:
+- The full marketplace suite on a disposable clone previously reported
+  53 tests, 0 failures, 0 errors BEFORE the final CSS compatibility and
+  header-ID fixes.
+- The two final fixes were checked against the live browser and routes, but
+  the full suite was NOT rerun afterward.
+- Another earlier security/invoicing state (module 17.0.1.5.2) had a separate
+  50-test clone run with 0 failures/0 errors. Do not conflate this with the
+  53-test marketplace run.
+- Historical project work contains multiple other test runs with failures or
+  errors (including 4-error runs) on different source versions/fixtures.
+  Do not claim the entire project has one universally passing suite.
+
+No commit, push, CI pipeline, Nginx, Prometheus, or Grafana deployment was
+performed for the current marketplace task.
+
+======================================================================
+2. WHAT THE PROJECT IS
+======================================================================
+
+`cartes_reduction` is an Odoo 17 addon for customer loyalty/reduction cards
+and omnichannel sales. It extends an Odoo installation; it is not a
+standalone service. It integrates with core Odoo Sales, Website/eCommerce,
+Accounting, POS, portal/signup, loyalty, products, taxes, and payments.
+
+Business goals:
+- Manage four customer discount tiers and their active card assignments.
+- Accrue loyalty points and promote customers using points or recent spend.
+- Apply validated rewards in Website, Sales, and POS flows.
+- Show a customer digital pass and tier progress in the portal.
+- Operate a Tunisian furniture catalogue under Sotufab Distribution Tunisie.
+- Produce French-facing invoice/email/storefront content.
+- Provide customer RFM, CLV/churn, product association/Apriori analytics.
+- Support controlled handling of sensitive CIN/customer fields and security
+  audit functionality.
+
+Main code areas in the addon:
+- `models/`: cards, attribution, points, loyalty rules/rewards, partner
+  extensions, Sales/POS integration, invoices, analytics, CIN/security/audit,
+  dashboards, promotions, and wizards.
+- `controllers/`: `/shop`, authentication, portal cards, public routes, and
+  other website flows.
+- `views/`: QWeb storefront/portal templates, backend forms, reports,
+  dashboards, loyalty and security views.
+- `static/src/js/`: website/POS/portal interactions, password policy.
+- `static/src/scss/`: storefront and portal card styling.
+- `static/src/xml/`: POS templates.
+- `security/`: group definitions, access CSV, record rules.
+- `data/`: seed/configuration XML.
+- `migrations/`: versioned post-upgrade scripts.
+- `tests/`: Odoo transactional and HTTP/browser-oriented tests.
+- `ml_model/`: customer and product analytics/model code and datasets.
+- `reports/`: printable QWeb reports.
+
+Main Odoo manifest dependencies include `base`, `sale_management`, `website`,
+`account`, `point_of_sale`, `loyalty`, `product`, `pos_loyalty`, `sale`,
+`sale_loyalty`, `web`, `website_sale`, `portal`, `auth_signup`, and
+`payment_demo`. Python extras include scikit-learn, joblib, pandas, mlxtend,
+cryptography, and qrcode. Verify exact deployed manifest before changing
+dependencies.
+
+======================================================================
+3. RUNTIME, HOST, CONTAINERS, AND NETWORK
+======================================================================
+
+Production host and paths:
+- SSH host: `odoo@192.168.108.129` (VM hostname previously observed as
+  `odoo17-vm`).
+- Source checkout: `/home/odoo/cartes_reduction`.
+- Production database: `odoo17`.
+- HTTP port: 8069.
+- Active addon code has been baked into `/opt/odoo-addons/cartes_reduction`.
+- `/mnt/extra-addons/cartes_reduction` exists as a mounted location but was
+  stale/different in prior inspections. Do not assume it is the active code.
+- The Docker build copies the project into `/opt/odoo-addons/cartes_reduction`.
+
+Docker Compose services observed:
+- `db`: PostgreSQL 15 Alpine; internal Docker network only.
+- `web`: production Odoo 17.
+- `odoo-init`: one-shot initialization/upgrade dependency; its Compose command
+  includes `--init=base,cartes_reduction`. Do not casually recreate or run it
+  on a live DB as an upgrade procedure.
+- `e2e-web`: separate long-running test Odoo, database `odoo17_e2e_tnd`,
+  host port 8075 bound to 127.0.0.1. Its image was stale relative to the last
+  production rebuild.
+- `mailpit`: test email inbox and SMTP sink; ports 8025 and 1025 are bound to
+  the VM loopback 127.0.0.1.
+
+Observed live mappings at the last check:
+- Production Odoo 8069 was published on `0.0.0.0`/all host interfaces.
+- Mailpit 8025 and 1025 were loopback-only.
+- E2E 8075 was loopback-only.
+- PostgreSQL 5432 was not published on the host.
+
+Mailpit:
+- Mailpit has NOT moved to another VM address. Its service listens on the VM
+  loopback, intentionally not on `192.168.108.129:8025`.
+- From the user's PC, use SSH local forwarding:
+  `ssh -L 8025:127.0.0.1:8025 odoo@192.168.108.129`
+  and open `http://127.0.0.1:8025/`.
+- An active browser page showed Mailpit at that local URL; the inbox was
+  empty at the last report.
+- Mailpit is not a production SMTP delivery service. Customer emails will be
+  captured locally until a real authenticated SMTP server is configured.
+
+Persistent data and backups:
+- PostgreSQL and Odoo filestore live in Docker volumes. Never use
+  `docker compose down -v` or delete volumes as a routine cleanup.
+- Known verified pre-change backups:
+  `/home/odoo/backups/odoo17_before_marketplace_20261125.dump`
+  and
+  `/home/odoo/backups/odoo17-filestore-before-marketplace-20261125.tar.gz`.
+- Earlier backups include
+  `/home/odoo/backups/odoo17_before_ui_security_polish_20261123.dump`
+  and
+  `/home/odoo/backups/odoo17_before_sotufab_catalog_20261123.dump`.
+- Verify that a specific backup exists, is readable, and matches the current
+  database before relying on it. Do not restore unless explicitly needed.
+
+======================================================================
+4. COMPANY, CATALOGUE, TAX, CURRENCIES, AND PAYMENT
+======================================================================
+
+Sotufab setup reported in production:
+- Company: `Sotufab Distribution Tunisie`, company ID 5.
+- Currency: TND (three decimal places; rounding 0.001).
+- Website ID 1 belongs to Sotufab; a second website (ID 2) belongs to a
+  different/demo company and was intentionally left unchanged in prior work.
+- Sotufab sales tax: 19%, tax ID 6 in the inspected database; `price_include`
+  is true. The displayed product price includes tax; the invoice breaks tax
+  out rather than adding it twice. Confirm on live records before changing.
+- Sotufab showroom POS config ID 3, labelled `Sotufab Showroom - Tunis`,
+  uses company 5/TND and Sotufab POS categories 6–10.
+- POS config ID 1 (`Shop`) belongs to demo company 1. Do not use it as the
+  Sotufab cashier terminal or change it to Sotufab without permission.
+
+Product visibility/catalogue operation (historical production work):
+- Earlier inspection found 106 product templates, 112 variants, no archived
+  products; 18 `SF-*` furniture products were originally company 5.
+- 35 legacy office furniture templates were made active/saleable/POS-enabled
+  and published to Sotufab website 1, placed in `Mobilier Sotufab`, and mapped
+  to the Sotufab POS categories. The 18 `SF-*` products were also published
+  and placed into that catalogue.
+- The resulting count reported for the Sotufab public category was 53 items.
+- Legacy products were mostly shared across companies. They were deliberately
+  left shared (`company_id=False`) to avoid breaking historic Sales, POS,
+  invoices, or reservations for other companies.
+- A production inventory operation moved 866 unreserved stock units into
+  Sotufab via Odoo inventory adjustments (846 from company 1, 20 from company
+  2); reservations and existing transactions were not moved. Lots were copied
+  when needed. A clone showed 865 net Sotufab quantity after an existing -1
+  quant. These are historical figures; re-query live inventory before acting.
+- Residual stock reported at the source companies was reserved or negative
+  (company 1 on-hand 333/reserved 341; company 2 on-hand/reserved 180/180);
+  it was not transferred.
+- The current Sotufab pricelist conversion can produce large prices. A
+  historical example was an Office Chair with source price 70 displaying
+  2,384.63 TND under the selected current conversion. No base prices were
+  changed. Audit real-sale prices before customer launch.
+
+Website payment:
+- Company-specific Demo provider ID 17 was added for company 5/website 1,
+  state `test`, published, with active Demo method. Compatibility was verified
+  historically and the user confirmed e-commerce test payment works.
+- This is a simulated payment only. Stripe was disabled when inspected; no
+  live card processor/real charge credentials are configured.
+- The Demo provider must not be described as real card or cash-on-delivery
+  processing.
+
+======================================================================
+5. LOYALTY RULES AND TIERS
+======================================================================
+
+Current repository configuration in `hooks.py` and the portal/model code:
+- Bronze: default tier, 2% discount, zero spend/points threshold.
+- Silver: 5%; upgrade at either 40,000 TND of rolling last-30-day spend OR
+  4,000 cumulative loyalty points.
+- Gold VIP: 10%; upgrade at either 60,000 TND rolling 30-day spend OR
+  6,000 cumulative points.
+- Platinum: 16%; upgrade at either 100,000 TND rolling 30-day spend OR
+  10,000 cumulative points.
+- Target earning configuration: 10 TND = 1 point (0.1 point per TND).
+- Only the single highest qualifying active card should remain active for a
+  customer.
+- The portal `/my/cartes` displays current card, point balance, recent-spend
+  progress, point progress, and next tier.
+- The code uses a rolling 30-day window, not calendar-month spend.
+
+Important accuracy note:
+- Historical seed/recalibration scripts sometimes set points manually or used
+  generic products, and earlier test runs had failures. Do not infer points
+  are correctly derived from current orders based only on the card's current
+  balance. Query current records and trace accrual rules before making claims.
+- A historical synthetic-data reset report stated 15 demo accounts, with a
+  tier distribution of 2 Platinum, 3 Gold, 4 Silver, 6 Bronze. Another report
+  stated 161 confirmed Sales orders and 32 fully paid POS orders over 2024–26.
+  Treat these as previously reported results; verify live DB before using them
+  as current totals.
+
+======================================================================
+6. CUSTOMER JOURNEYS AND FUNCTIONAL BEHAVIOR
+======================================================================
+
+Website/eCommerce:
+1. `/` redirects to `/shop` for the Sotufab site.
+2. Customer sees products, searches, adds them to the Odoo session cart.
+3. Prices use the current Sotufab pricelist and price-included VAT setup.
+4. Loyalty discounts must be validated server-side against the customer's
+   active card, current cart, applicable product/reward, and company/website.
+5. Odoo checkout/provider compatibility determines whether a payment option is
+   available. Current enabled provider is Demo/test, not live.
+6. Sales, invoice, points, card tier, and analytics processing depend on
+   Odoo's normal order lifecycle. Never bypass it by directly inserting SQL.
+
+Marketplace UI now deployed:
+- One white sticky header with Sotufab logo, central search, Boutique, Mes
+  Cartes, Mes Commandes, Panier badge, and public/login or connected-user menu.
+- Odoo secondary header is replaced. A floating right dock was removed.
+- Shop hero uses midnight navy/steel with amber accent and mentions the
+  immediate loyalty discount up to 16%.
+- Product catalogue has loyalty discount badges and white product cards.
+- Cart uses branded layout and French heading; empty-cart path verified.
+- Footer is branded Sotufab and in French.
+- Demo express-payment modal is in French and explicitly states it is a
+  non-real test transaction. Do not create a false claim of card or cash
+  payment capability.
+- Portal card/order screens use matching Sotufab styles.
+
+Sales:
+- Sales users create quotations/orders and invoices via normal Odoo models.
+- Loyalty reward validation should occur server-side; client UI alone is not
+  authorization.
+- Currency, company, invoice tax, and applicable card must follow the order's
+  company/customer context.
+
+POS:
+- Correct Sotufab configuration is POS config 3 (company 5).
+- POS has product, card/reward, and customer integrations in the addon JS/XML
+  and model hooks.
+- Earlier POS verification requirements changed over time (PIN, then
+  PIN-free OTP or signed QR). Historical handoffs conflict about what was
+  deployed. Inspect current `models/PosSession.py`, `models/res_partner.py`,
+  POS JS/XML, and database config before claiming the exact live auth flow.
+- The recent marketplace task did not intentionally alter POS behavior.
+- A reported security fix escaped POS popup content rather than injecting
+  database-controlled HTML.
+
+Portal:
+- Authenticated portal accounts should land on `/shop` after the login
+  redirect behavior.
+- `/my/cartes` renders the customer's active card and progress.
+- `/my/orders` uses Odoo's normal portal ownership behavior.
+- Public requests to private portal routes should redirect to login; do not
+  weaken that access control just to make anonymous routes return 200.
+
+======================================================================
+7. INVOICING, LANGUAGE, EMAIL, AND PASSWORDS
+======================================================================
+
+Invoices:
+- TND has three decimal places. Sotufab sales tax is 19% and is configured
+  price-included in the inspected live DB.
+- Invoice report and custom invoice-email language were updated for `fr_FR`;
+  translation loading was previously found necessary for French labels.
+- A dedicated custom French invoice email should contain invoice context and
+  the PDF, not unrelated loyalty card images.
+- Historical Mailpit inspection found duplicate standard/custom invoice
+  messages for `INV/2026/00050`; a duplicate guard and branded custom invoice
+  email were implemented during earlier polishing.
+- A later invoice calculation example was 985.764 TND HT + 187.296 TND VAT =
+  1,173.060 TND TTC; it was an example from one invoice, not a current
+  universal price.
+- Real email delivery is not configured while Mailpit is the only outgoing
+  mail server. Configure authenticated SMTP separately for real delivery.
+
+Password policy:
+- Server-side `res.users.create/write` and frontend signup/reset UI implement
+  at least 8 characters, one uppercase ASCII letter A-Z, and one digit 0-9.
+- Weak passwords should receive a clear French validation message.
+- Server-side enforcement is authoritative; frontend JavaScript is only UX.
+
+Email card visuals:
+- Loyalty/welcome/tier emails were updated to use tier-specific card assets
+  and Sotufab company branding.
+- For any request to unify/redesign the visual cards, inspect actual source
+  PNGs and live card binary fields. Prior handoffs disagree on whether all
+  four assets had the exact same diagonal metallic geometry.
+- Current asset paths include `static/img/cards/` and `static/src/img/`.
+- A Platinum 16% 1920x1200 asset was created in prior work; verify current
+  asset and card-record binaries before claiming the full shared visual
+  refresh is complete.
+
+======================================================================
+8. SECURITY, ACCESS CONTROL, AND AUDIT
+======================================================================
+
+Security improvements reported in the repository/production work:
+- Public website recommendation/discount paths were hardened to validate
+  rules, customer tier, cart contents, products, website/company, and server
+  reward config.
+- POS popup output was changed to escaped QWeb text rather than raw
+  interpolation.
+- Some broad custom ACL grants were removed/tightened; a versioned migration
+  cleans up stale ACL records.
+- ML training and manual analytics refresh were restricted to system
+  administrators.
+- Password policy is enforced on the server.
+- Mailpit UI/SMTP and E2E host ports are bound to loopback.
+- CIN encryption/masking, HMAC/PBKDF2 utilities, OTP/QR, and security audit
+  facilities exist or have existed in different versions; verify the active
+  code before making claims about cryptographic storage/auth flows.
+
+Audit caution:
+- A historical production reset report said the audit chain had 279 entries
+  and was valid/unchanged. Another inspection of a different local source
+  version did not find the expected chain fields. Verify live model/version
+  before asserting current chain integrity.
+- Hash chaining can detect changes but does not stop a database administrator
+  with disk/key/snapshot access from altering history. Do not call it
+  tamper-proof against host administrators.
+- A whole-system security audit was not completed. Earlier review had concrete
+  findings (discount authorization, exposed test service ports, popup XSS);
+  those were addressed in later code/deployment work. Do not state "fully
+  secure" or "security audit passed."
+- Some native Odoo ACLs remain by design to preserve POS/Sales behavior.
+  Verify route, ACL, record rule, and model-method behavior together.
+- Never rely on hidden menus or frontend JS for authorization.
+
+======================================================================
+9. CUSTOMER ANALYTICS AND ML
+======================================================================
+
+The addon has customer/transaction analytics and recommendation functionality:
+- RFM: recency, frequency, monetary value.
+- CLV: modeled customer lifetime value estimate, not accounting profit.
+- Churn/risk: estimate using customer recency/frequency/activity.
+- Apriori association rules: support, confidence, lift, antecedents and
+  consequents from confirmed Sales and paid POS products.
+- Dashboard/action methods and scheduled/manual analytics recomputation.
+- scikit-learn/joblib artifact handling and checksum verification.
+
+Artifact/checksum:
+- Model output historically stored under `/var/lib/odoo/ml_models/model.pkl`.
+- Trust hash may be provided by `CARTES_ML_MODEL_SHA256` or
+  `ir.config_parameter` key `cartes_reduction.ml_model_sha256`.
+- If the model artifact changes, verify/set the matching trusted SHA-256 using
+  the intended admin-only path. Do not bypass mismatch checks.
+- One prior history reset report stated 102 ML samples, 3,378 Apriori rules,
+  and a trusted checksum update. These counts need live verification.
+
+Data quality note:
+- Demo data is synthetic. Model predictions and associations are demo-grade
+   unless data quality/volume and model metrics have been independently
+  validated.
+- Recompute analytics only after order history, payment state, companies,
+  and product variants have been checked.
+
+======================================================================
+10. DEMO USERS, ORDERS, CATALOGUE, AND HISTORICAL OPERATIONS
+======================================================================
+
+Demo accounts:
+- A historical setup created 15 fictional demo partners/accounts, including
+  B2B and B2C segments. Login patterns `demo.sft.demo.01`–`.15` were
+  previously reported. Never include their passwords or credential files.
+- The 15 logins were mapped in one prior database inspection to partner IDs
+  58–72; recheck current DB.
+- Demo data is not production customer data and should be clearly identified
+  before a real commercial launch.
+
+Synthetic order history:
+- Prior flawed scripts created inconsistent draft/confirmed/paid mixes and at
+  one point set point balances manually.
+- A later reset/reseed report claimed previous scoped records removed and
+  replaced with 161 confirmed Sales orders plus 32 paid POS orders spanning
+  2024–2026. It reported the tier distribution above and recalculated
+  analytics.
+- Older notes disagree about the actual orders/invoices/transactions and
+  whether a reset was pending. Reconcile against current production DB before
+  deleting, reseeding, presenting totals, or running more scripts.
+- Never directly delete posted/reconciled accounting moves or POS session
+  moves by broad SQL. Trace exact order/invoice/payment links and use Odoo ORM.
+- Preserve the security audit chain and all non-scoped orders.
+
+Earlier clean-catalog operation:
+- 35 legacy Office Furniture product templates were published into Sotufab's
+  website/POS catalogue alongside 18 `SF-*` templates, total 53.
+- Legacy product company ownership stayed shared to preserve historic
+  transactions; company-specific POS/website/category/tax configuration was
+  added instead.
+- 866 unreserved stock units were moved into company 5 using Odoo inventory
+  adjustments; reserved and negative stock was not transferred.
+- Historical backup:
+  `/home/odoo/backups/odoo17_before_sotufab_catalog_20261123.dump`.
+- This catalog operation changed live DB state, not Git source.
+
+======================================================================
+11. CURRENT MARKETPLACE FIX — ROOT CAUSES AND VERIFICATION
+======================================================================
+
+The latest UI task replaced the Odoo secondary header and floating dock with
+a full-width branded marketplace interface. Browser validation initially
+showed the content but also showed the red Odoo CSS fallback banner and an
+Odoo minimal frontend JS exception.
+
+CSS issue:
+- Odoo SCSS compiler evaluated CSS `min(100% - 3rem, 1440px)` as a Sass
+  function and failed with incompatible `%` and `rem` units.
+- The same pattern existed in three width declarations (header, footer,
+  responsive header). They were replaced with `width: calc(...)` and
+  `max-width`.
+- This was deployed to the production source, image rebuilt, and web
+  restarted.
+
+JavaScript issue:
+- The custom replacement retained `header#top`, which made Odoo's
+  `web.assets_frontend_minimal` script find the custom header and assume the
+  native Odoo menu existed. It then called `querySelector` on a null menu.
+- The custom header no longer uses the native `id="top"`. A regression
+  assertion was added to `tests/test_ui_security_polish.py`.
+- This QWeb update was upgraded into production.
+
+Final browser smoke check:
+- New frontend bundle URL was generated, Sass error banner absent.
+- Computed header position `sticky`; white background and shadow present.
+- Hero gradient present; header nav grid active.
+- `/shop` returned 200 and `/shop/cart` returned 200.
+- No browser page errors were seen after fix.
+- The full 53-test suite was not rerun after these last two changes.
+
+Files in this marketplace task:
+- `views/storefront.xml`: Sotufab layout header/footer, search, hero, discount
+  badge, cart heading, Demo payment modal.
+- `static/src/scss/storefront.scss`: responsive marketplace styles.
+- `controllers/auth.py`: root/login landing redirects to `/shop`.
+- `hooks.py`: site language setup.
+- `migrations/17.0.1.6.0/post-migration.py`: language/setup migration.
+- `__manifest__.py`: version 17.0.1.6.0.
+- `tests/test_ui_security_polish.py`: route/header/footer/modal checks, with
+  final header-id assertion.
+
+======================================================================
+12. TIMELINE OF MAJOR PROJECT WORK
+======================================================================
+
+The following is a timeline, not proof every historical record still exists:
+
+1. Project reset and Odoo setup:
+   - Rebuilt/cleaned the `main` repository snapshot; historical Tasnim work was
+     retained on an archive branch. The archive branch must not be deleted
+     unless the user explicitly requests it.
+   - Odoo 17 and Sotufab demo environment run in Docker on the VM.
+
+2. Loyalty tier and demo history:
+   - Added Platinum (16%) alongside Bronze (2%), Silver (5%), Gold VIP (10%).
+   - Recalibrated thresholds and points to 10 TND = 1 point.
+   - Added Platinum card pass/progress/email support.
+   - Synthetic order history has been seeded/reset more than once. Use current
+     DB query results, not old handoff totals.
+
+3. Catalogue and inventory:
+   - Diagnosed product visibility mismatch among website, admin, and cashier as
+     company/site/POS-category configuration rather than missing product
+     records.
+   - Published the 35 legacy furniture items and 18 Sotufab items for a
+     53-product storefront/POS catalogue; moved only unreserved stock.
+
+4. Security/invoice/account hardening:
+   - French invoice reporting/email work, price-included 19% VAT handling,
+     3-decimal TND, password policy, safe email image references, duplicate
+     invoice mail handling.
+   - Public discount route validation and POS popup escaping.
+   - Admin-only ML training/manual refresh.
+   - Mailpit/E2E loopback network bindings.
+   - Earlier module version milestones included 17.0.1.5.0, 17.0.1.5.1,
+     17.0.1.5.2, and 17.0.1.5.3. Current deployed version is 17.0.1.6.0.
+
+5. E-commerce payment:
+   - Production company-specific Demo/test payment provider ID 17 for
+     company 5/site 1 was created and provider compatibility verified.
+   - User confirmed checkout works. It is a test simulation, not live card
+     payment.
+
+6. Latest marketplace redesign (2026-11-25):
+   - Built sticky Sotufab header, search, navigation, hero, product badges,
+     cart styling, French footer and Demo notice.
+   - Fixed Sass `%`/`rem` compilation error and frontend native-header JS
+     exception; browser verified the last fixes.
+
+7. Other deliverable:
+   - Gantt chart created at `C:\Users\azaro\Desktop\gantt_pfe_esprit.png`.
+   - Matplotlib was installed in the user Python environment, not added to
+     project requirements.
+
+======================================================================
+13. GIT, BRANCHES, AND WORKTREE
+======================================================================
+
+As directly checked 2026-11-25:
+- Local repo path: `C:\Users\azaro\carte-reduction`.
+- Branch: `main`.
+- `HEAD` = `origin/main` =
+  `4e0b621667732e140e7480aa902b91ca6a4b9648`.
+- Remote checkout `/home/odoo/cartes_reduction` reported the same HEAD.
+- Marketplace changes are dirty in both local and remote working trees.
+- No commit or push was done for the 1.6.0 marketplace work.
+
+Current tracked modifications:
+- `__manifest__.py`
+- `controllers/auth.py`
+- `hooks.py`
+- `static/src/scss/storefront.scss`
+- `tests/test_ui_security_polish.py`
+- `views/storefront.xml`
+
+Current untracked task path:
+- `migrations/17.0.1.6.0/` (contains the site-language post-migration).
+
+Pre-existing/local documentation:
+- `PROJECT_OVERVIEW.txt` already existed untracked before this handoff. It
+  contains broad aspirational DevSecOps descriptions and should not be staged
+  by accident.
+- This new file is `PROJECT_HANDOFF_FULL_2026-11-25.txt`.
+- Remote `odoo.conf` and `.env` are server configuration/secrets; preserve
+  them, never copy into Git.
+
+Known history:
+- `6f2a596`, `570a5d8`, `d3ebab6`, `8087ddb`, `8e2bcab` are prior commits.
+- A prior current-session status reported local/origin at `d3ebab61...`; this
+  later moved to `4e0b621...` with French invoice translations.
+- An archive branch exists for old Tasnim history. Do not delete.
+
+Exact Git destination and prior commit identity:
+- `origin` is `https://github.com/ahmedzaroui1/carte-reduction.git`.
+- Target branch is `main`; the intended GitHub owner/account is
+  `ahmedzaroui1`.
+- The latest commits were authored and committed as
+  `ahmedzaroui1 <azaroui86@gmail.com>`. The local Git config at the time of
+  inspection also had that exact name/email.
+- This is the public Git commit identity. It does NOT reveal or store the
+  GitHub sign-in credential. Push authentication used the existing VS Code /
+  Git Credential Manager session. Do not put a GitHub token/password in this
+  file or ask the user to paste one. If authentication is expired, use the
+  normal VS Code/Git Credential Manager sign-in flow for the account with
+  write access to `ahmedzaroui1/carte-reduction`.
+- Recent commit format: short sentence-case subject, optional concise body,
+  then:
+  `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+
+When the user explicitly authorizes committing and pushing, use this
+non-interactive, review-first sequence from `C:\Users\azaro\carte-reduction`.
+First rerun the required tests and inspect all diffs; do not push the latest
+marketplace change until the full suite has been rerun on a disposable clone.
+Never use `git add -A`, amend, force-push, or skip hooks/signing. Stage only
+the scoped work and this handoff; intentionally leave the pre-existing
+`PROJECT_OVERVIEW.txt` unstaged:
+
+```powershell
+git status --short
+git diff --check
+git diff
+git add __manifest__.py controllers/auth.py hooks.py `
+  static/src/scss/storefront.scss tests/test_ui_security_polish.py `
+  views/storefront.xml migrations/17.0.1.6.0/post-migration.py `
+  PROJECT_HANDOFF_FULL_2026-11-25.txt
+git diff --cached --stat
+git diff --cached
+git -c user.name="ahmedzaroui1" -c user.email="azaroui86@gmail.com" `
+  commit -m "Polish Sotufab marketplace storefront" `
+  -m "Fix SCSS compilation and remove the native header selector error." `
+  -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+git status --short
+git log -1 --format="%H %an <%ae> %s"
+git push origin main
+git status --short
+git log -1 --format="%H %an <%ae> %s"
+```
+
+If Git reports that `main` is behind/diverged, stop and inspect before syncing;
+do not force-push. Check that the authenticated GitHub account has write
+access before pushing. The current task did NOT request or perform a commit
+or push.
+
+======================================================================
+14. FILES A NEW AGENT SHOULD READ FIRST
+======================================================================
+
+Repository:
+- `README.md`: local development, tests, security notes.
+- `__manifest__.py`: Odoo module version, dependencies, assets, data files.
+- `docker-compose.yaml`, `Dockerfile`, `.dockerignore`, `.gitignore`:
+  local/service setup. Do not assume remote `odoo.conf` is in Git.
+- `hooks.py`: installation/configuration and loyalty seed values.
+
+Business and security:
+- `models/cartes.py`, `models/carte_condition.py`,
+  `models/cartes_attribution.py`: tiers, conditions, assigned cards.
+- `models/res_partner.py`, `models/sale_order.py`,
+  `models/sale_order_line.py`, `models/PosSession.py`: points/customer
+  logic and Sales/POS integrations.
+- `models/account_move.py`, `views/invoice_reports.xml`: invoice/report/mail.
+- `models/security_utils.py`, `models/cin_security.py`,
+  `models/security_audit.py`: sensitive data and audit helpers.
+- `security/security.xml`, `security/record_rules.xml`,
+  `security/ir.model.access.csv`: group, record, and model access.
+- `controllers/website_sale.py`, `controllers/auth.py`,
+  `controllers/portal.py`: public/shop/auth/portal routes.
+- `models/data_ml.py`, `ml_model/`, `models/ProductAssociation.py`:
+  analytics and association rules.
+
+Current storefront:
+- `views/storefront.xml`
+- `static/src/scss/storefront.scss`
+- `static/src/js/password_policy.js`
+- `tests/test_ui_security_polish.py`
+- `migrations/17.0.1.6.0/post-migration.py`
+
+Other Odoo test files:
+- `tests/test_analytics.py`
+- `tests/test_discount_card_workflows.py`
+- `tests/test_pass1_loyalty.py`
+- `tests/test_pass2.py`
+- `tests/test_pos_verification.py`
+- `tests/test_security_hardening.py`
+- `tests/test_ui_security_polish.py`
+- `tests/test_vip_compute.py`
+
+======================================================================
+15. TEST, UPGRADE, AND DEPLOYMENT PRACTICES
+======================================================================
+
+Tests:
+- A passing Odoo suite must actually run the target module with
+  `--test-enable --test-tags /cartes_reduction` and show test count, failures,
+  errors, and command exit code.
+- Do not infer pass/fail from an HTTP 200, zero tests, or an earlier version's
+  result.
+- Use a unique disposable DB/filestore restored from a matching backup if a
+  full Odoo upgrade/test is required.
+- Do not use the running `odoo17_e2e_tnd` DB as a disposable clone without
+  explicit plan; it backs a persistent E2E service.
+- Remove only the specifically created test DB and filestore after results
+  are collected. Do not delete Docker volumes or broad directories.
+
+Production upgrade:
+1. Verify correct source, module version and DB.
+2. Create and validate DB plus filestore backups.
+3. Build the image from the exact tested source.
+4. Use a one-off Odoo upgrade command against `odoo17` with the web service
+   safely stopped; ensure command targets only `cartes_reduction` and does not
+   initialize/overwrite the production DB.
+5. Start/recreate only the necessary services.
+6. Check container health, logs, module version, `/shop`, `/shop/cart`,
+   authentication/portal, invoice and mail paths, assets, and browser console.
+7. Record existing non-fatal warnings separately; do not call them zero
+   warnings if present.
+
+Never:
+- `docker compose down -v`.
+- Run broad `DROP DATABASE`, wildcard deletes, or direct SQL deletions of
+  posted accounting entries.
+- Recreate the production DB from `odoo-init`.
+- Upgrade untested source directly while another Odoo process is writing.
+- Sync the whole local repo to the server or overwrite `.env`/`odoo.conf`.
+
+======================================================================
+16. WHAT IS NOT CURRENTLY IMPLEMENTED/CONFIRMED
+======================================================================
+
+- No active `.github/workflows/` pipeline or `.gitlab-ci.yml` was found in the
+  repository inventory.
+- No tracked `nginx/` deployment directory, Prometheus config, or Grafana
+  provisioning was found. Do not repeat aspirational PROJECT_OVERVIEW.txt
+  claims as deployed facts.
+- Bandit and Trivy are not known to be running in an automated pipeline.
+- Odoo HTTP 8069 was exposed on all host interfaces at last check; Mailpit and
+  E2E are loopback-only. A production TLS reverse proxy/firewall setup was not
+  verified here.
+- Real SMTP delivery is not configured.
+- Live card payment is not configured; Demo/test provider only.
+- The full security audit is not complete.
+- Full Odoo tests have not been rerun after the last two marketplace changes.
+- Portal `/my/cartes` and `/my/orders` have not been visually rechecked in a
+  live authenticated browser after the CSS fix.
+- Some page metadata still appeared English ("Shopping Cart | My Website")
+  although the cart body was French.
+- Unified all-four diagonal card art should be visually checked against the
+  latest user expectation before claiming exact styling.
+
+======================================================================
+17. IMMEDIATE CONTINUATION CHECKLIST
+======================================================================
+
+If the next user asks to continue the marketplace task:
+1. Open this file and inspect `git status --short` and the local/remote diff.
+2. Confirm production module version 17.0.1.6.0 and web status.
+3. Recheck `/shop` and `/shop/cart` after current deployment; verify no CSS
+   banner/JS errors.
+4. With an authorized test portal account, inspect `/my/cartes` and
+   `/my/orders` desktop/mobile. Do not put credentials in the report.
+5. If any code changes are needed, run the focused test first and then the
+   module suite on a genuinely disposable clone. The latest full passing
+   result (53 tests) predates the final CSS/header correction.
+6. If user asks to commit/push, stage only explicitly scoped project files,
+   exclude `PROJECT_OVERVIEW.txt` unless asked, follow repo commit style, and
+   include the required Copilot co-author trailer.
+
+If the next request concerns other business logic (catalogue, synthetic
+history, card art, PIN/OTP/QR, taxes, invoices, payment, analytics), re-read
+the corresponding model/controller/security files and query current production
+state first. Several historical notes disagree because changes were made in
+multiple sessions and against different clones/images.
+
+END OF HANDOFF

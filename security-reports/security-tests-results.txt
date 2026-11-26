@@ -1,0 +1,98 @@
+Sotufab security-control tests - production demo database
+========================================================
+Run date: 2026-11-26
+Database: odoo17 (Odoo 17)
+Scope: eight authorized functional/defensive checks using only the dedicated
+test.sec.caissier, test.sec.clientA, and test.sec.clientB accounts.
+
+Test results
+------------
+1. Authentication and POS session lifecycle: PASS
+   Login/logout was exercised for the test cashier and client. POS session 20
+   on configuration Shop was opened and closed; no active session remained.
+2. OTP/QR: PASS for legitimate validation; PARTIAL for replay protection.
+   The legitimate signed OTP/QR was accepted. An OTP allowed to expire for
+   more than 60 seconds was rejected and logged as otp_expired. PIN and OTP
+   failures were rejected and logged as pin_failed and pos_otp_failed.
+   Replaying the consumed token was rejected as expired, but did not create a
+   replay_blocked audit event.
+3. Concurrent double-spend: PASS
+   Two isolated transactions exercised the NOWAIT row-lock guard; the second
+   attempt was blocked and double_spend_blocked was logged.
+4. Inter-client IDOR: PARTIAL
+   Client A's request for Client B's resource was rejected as Unauthorized,
+   but no idor_blocked event was recorded.
+5. XSS/SQLi input rejection: PASS
+   The two submitted test payloads received HTTP 400 responses and produced
+   two injection_blocked events.
+6. Altered HMAC: PASS
+   The modified QR signature was rejected and hmac_invalid was logged.
+7. CIN access audit: PASS
+   The authorized administrator revealed only the synthetic test client's
+   CIN; cin_reveal was logged.
+8. ML integrity and audit verification: PASS
+   The guarded ML artifact loaded without an integrity failure. The final
+   PostgreSQL audit chain and external seal both verified successfully.
+
+Observed final state
+--------------------
+- Audit chain: valid; 514 entries.
+- External seal: valid; sequence 23; head_match=true.
+- New audit rows during the live checks/provisioning: 15 (baseline was 499
+  entries, sequence 8). The two observed audit-coverage gaps were the consumed
+  OTP replay and the rejected IDOR request described above.
+- Prometheus scrape target cartes-reduction: up=1. The authenticated metrics
+  endpoint reported seal integrity valid, head_match=1, sequence=23,
+  failures_total=0, and 514 audit entries. The event counters are cumulative
+  across the database history, not limited to this run.
+- Final POS Shop configuration had no active session.
+- Dedicated test accounts remain active. Their generated passwords are not
+  included in this report.
+
+Audit-coverage findings observed before deployment
+--------------------------------------------------
+- models/res_partner.py:681-690 and 751-768: a missing/consumed OTP expiry
+  returns an expired response without a replay_blocked event; successful use
+  clears pos_otp_expires_at.
+- controllers/main.py:19-20: cross-client access is correctly rejected as
+  Unauthorized, but the rejection does not emit idor_blocked.
+
+Fixes and verification
+----------------------
+- The model now stores a keyed digest of the most recently consumed OTP/QR and
+  emits replay_blocked when that exact token is reused. A genuinely expired,
+  unconsumed token continues to emit otp_expired.
+- The IDOR rejection audit event records the target partner ID; unauthorized
+  access continues to be rejected.
+- Three focused Odoo regression tests passed on disposable clone
+  odoo17_replaydeploy_20261126: 0 failures, 0 errors. These covered consumed
+  OTP replay, genuine expiry, and cross-client IDOR auditing.
+- The full module suite on that clone reported 9 failures and 0 errors of 54
+  tests: test_partner_creation_assigns_welcome_bronze_once,
+  test_partner_family_keeps_only_one_highest_tier_attribution,
+  test_purchase_sends_one_combined_points_and_upgrade_email,
+  test_ten_tnd_awards_one_point_and_upgrades_at_4000,
+  test_signup_partner_has_tunisian_checkout_defaults,
+  test_invoice_email_has_only_relevant_branded_content,
+  test_order_discount_requires_active_card_and_matching_cart,
+  test_authenticated_portal_default_landing_is_shop, and
+  test_demo_checkout_is_transparent_and_localized. These tests are outside the
+  two patched paths and were not changed. The cloned database did not include a
+  copied filestore, and the run logged missing attachment files. The full-suite
+  failures remain uninvestigated.
+
+Production deployment
+---------------------
+- Applied only the two targeted model/controller edits to
+  /home/odoo/cartes_reduction and the running image's /opt/odoo-addons copy.
+- Upgraded cartes_reduction on odoo17; the pos_otp_consumed_digest column is
+  present. The upgrade exited successfully and loaded the module. Its log
+  also included a non-fatal missing XML ID traceback for
+  cartes_reduction.menu_gestion_cartes; this was not related to the fixes.
+- Restarted the web container; the local /web/login endpoint returned HTTP 200.
+- Post-deployment verification: PostgreSQL chain valid, 514 entries; external
+  seal valid, sequence 23, head_match=true. The production database and seal
+  were not used for the regression tests.
+- A production database backup was made before the upgrade and removed after
+  successful verification. The disposable clone and its test resources were
+  also removed.

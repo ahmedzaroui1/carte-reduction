@@ -230,14 +230,41 @@ class TestPortalShopRedirect(HttpCase):
             allow_redirects=False,
         )
         self.assertEqual(response.status_code, 303)
-        self.assertTrue(response.headers["Location"].endswith("/shop"))
+        self.assertTrue(response.headers["Location"].rstrip("/").endswith("/shop"))
 
-    def test_shop_renders_sotufab_theme_and_quick_access_dock(self):
+    def test_shop_renders_sotufab_marketplace_without_duplicate_header_or_dock(self):
         response = self.url_open("/shop")
         self.assertEqual(response.status_code, 200)
         self.assertIn("sotufab-storefront", response.text)
-        self.assertIn("Sotufab Distribution Tunisie", response.text)
-        self.assertIn("sotufab-quick-dock", response.text)
+        self.assertIn("sotufab-market-header", response.text)
+        self.assertNotIn('<header id="top"', response.text)
+        self.assertIn("sotufab-market-search", response.text)
+        self.assertIn("sotufab-market-hero", response.text)
+        self.assertIn("Jusqu’à −16 % fidélité", response.text)
+        self.assertIn("sotufab-market-footer", response.text)
+        self.assertNotIn("sotufab-quick-dock", response.text)
+        self.assertNotIn("Your Logo", response.text)
+        self.assertNotIn("+1 555-555-5556", response.text)
+        self.assertNotIn("Powered by Odoo", response.text)
+
+    def test_sotufab_homepage_redirects_to_shop(self):
+        response = self.url_open("/", allow_redirects=False)
+        self.assertIn(response.status_code, (302, 303))
+        self.assertTrue(response.headers["Location"].rstrip("/").endswith("/shop"))
+
+    def test_marketplace_pages_remain_available_to_portal_customers(self):
+        self.authenticate(self.portal_login, "StrongPass123")
+        for path in ("/shop/cart", "/my/cartes", "/my/orders"):
+            with self.subTest(path=path):
+                response = self.url_open(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("sotufab-market-header", response.text)
+
+    def test_demo_checkout_is_transparent_and_localized(self):
+        view = self.env.ref("cartes_reduction.sotufab_demo_checkout_fr")
+        self.assertIn("Paiement — Sotufab Distribution", view.arch_db)
+        self.assertIn("Confirmer et payer", view.arch_db)
+        self.assertIn("aucune transaction bancaire réelle", view.arch_db)
 
     def test_signup_route_renders_password_policy_error_in_french(self):
         response = self.url_open("/web/signup")

@@ -1,10 +1,10 @@
 {
     'name': "Cartes de Réduction",
-    'version': '17.0.1.5.3',
+    'version': '17.0.1.6.5',
     'author': "Sotufab Distribution Tunisie",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
-    'depends': ['base', 'sale_management', 'website', 'account', 'point_of_sale', 'loyalty', 'product', 'pos_loyalty', 'sale', 'sale_loyalty', 'web', 'website_sale', 'portal', 'auth_signup', 'payment_demo'],
+    'depends': ['base', 'sale_management', 'website', 'account', 'point_of_sale', 'loyalty', 'product', 'pos_loyalty', 'sale', 'sale_loyalty', 'web', 'website_sale', 'website_sale_loyalty', 'portal', 'auth_signup', 'payment_demo'],
     'external_dependencies': {
         'python': [
             'sklearn',
@@ -36,6 +36,7 @@
         'views/sale_loyalty_templates.xml',
         'views/invoice_reports.xml',
         'views/storefront.xml',
+        'views/internal_staff_login.xml',
         'views/website.xml',
         'views/portal_templates.xml',
         'views/dashboard_vente_views.xml',

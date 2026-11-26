@@ -1,0 +1,13 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: prometheus
+    secureJsonData:
+      basicAuthPassword: "$__file{/run/secrets/prometheus_basic_auth_password}"

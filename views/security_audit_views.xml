@@ -4,10 +4,21 @@
         <field name="model">cartes.reduction.security.audit</field>
         <field name="arch" type="xml">
             <tree string="Security Audit" create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_verify_integrity"
+                            type="object"
+                            string="Vérifier l'intégrité SHA-256"
+                            class="btn-primary"
+                            groups="base.group_system"/>
+                    <button name="action_initialize_external_seal"
+                            type="object"
+                            string="Initialiser le sceau externe"
+                            groups="base.group_system"/>
+                </header>
                 <field name="event_at"/>
                 <field name="event_id"/>
-                <field name="event_id"/>
                 <field name="event_type"/>
+                <field name="actor_scope"/>
                 <field name="partner_id"/>
                 <field name="client_record_id"/>
                 <field name="user_id"/>
@@ -27,6 +38,7 @@
                     <group>
                         <field name="event_at"/>
                         <field name="event_type"/>
+                        <field name="actor_scope"/>
                         <field name="partner_id"/>
                         <field name="client_record_id"/>
                         <field name="user_id"/>
@@ -40,8 +52,30 @@
     </record>
 
     <record id="action_security_audit" model="ir.actions.act_window">
-        <field name="name">Security Audit Log</field>
+        <field name="name">Incidents &amp; Alertes SHA-256</field>
         <field name="res_model">cartes.reduction.security.audit</field>
         <field name="view_mode">tree,form</field>
+        <field name="domain">[('event_type', 'in', ['cin_reveal', 'pin_failed', 'pos_otp_failed', 'otp_expired', 'velocity_abuse', 'ml_integrity_failure', 'unauthorized_access', 'idor_blocked', 'injection_blocked', 'tampered_token', 'hmac_invalid', 'replay_blocked', 'double_spend_blocked', 'seal_verify'])]</field>
+    </record>
+
+    <record id="action_security_audit_pos_logins" model="ir.actions.act_window">
+        <field name="name">Connexions Caissiers POS</field>
+        <field name="res_model">cartes.reduction.security.audit</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('actor_scope', '=', 'pos_cashier'), ('event_type', 'in', ['login', 'logout', 'login_failed'])]</field>
+    </record>
+
+    <record id="action_security_audit_ecommerce_logins" model="ir.actions.act_window">
+        <field name="name">Connexions Clients E-Commerce</field>
+        <field name="res_model">cartes.reduction.security.audit</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('actor_scope', '=', 'ecommerce_client'), ('event_type', 'in', ['login', 'logout', 'login_failed'])]</field>
+    </record>
+
+    <record id="action_security_audit_admin_logins" model="ir.actions.act_window">
+        <field name="name">Connexions Administration</field>
+        <field name="res_model">cartes.reduction.security.audit</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('actor_scope', '=', 'administrator'), ('event_type', 'in', ['login', 'logout', 'login_failed'])]</field>
     </record>
 </odoo>

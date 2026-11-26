@@ -1,0 +1,40 @@
+External audit seal tamper tests - disposable clone
+===================================================
+Run date: 2026-11-26
+Clone database: odoo17_secclone_20261126_1948
+Isolation: dedicated test container, audit-seal volume, and test HMAC key;
+no destructive seal operation was performed on production odoo17.
+
+Results
+-------
+1. Docker container restart / seal persistence: PASS
+   The clone's initialized seal remained valid after restarting the isolated
+   container (sequence 1, head_match=true).
+2. Modify an old PostgreSQL audit entry: PASS
+   verify_audit_chain detected payload_or_hash_modified. The SQL change was
+   rolled back and the original chain verified afterward.
+3. Modify the latest PostgreSQL entry hash: PASS
+   verify_audit_chain detected payload_or_hash_modified. The SQL change was
+   rolled back and the original chain verified afterward.
+4. Alter head_hash.seal: PASS
+   The altered HMAC was rejected as invalid_seal. The original file was
+   restored and verified afterward.
+5. Delete head_hash.seal: PASS
+   Verification reported the seal missing. The file was restored and verified.
+6. Roll back the seal sequence: PASS
+   A lower sequence, re-signed using the clone's test key, was rejected as an
+   invalid seal. The original file was restored and verified.
+7. Use the wrong HMAC key: PASS
+   Verification rejected the signature as invalid_seal. The configured clone
+   test key was restored and verification passed.
+
+Final clone verification: valid=true, postgres_valid=true, seal_valid=true,
+514 audit entries, sequence 1, head_match=true. The production database and its
+seal were not changed by these tamper tests.
+
+Cleanup
+-------
+After collecting these results, the disposable database, test container,
+dedicated audit-seal volume, and /tmp/cartes_reduction_seal_test_20261126
+directory were removed. The database, container, volume, and directory were
+each verified absent afterward.

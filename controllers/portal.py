@@ -1,11 +1,17 @@
 from odoo import fields, http
 from odoo.http import request
 
+from odoo.addons.cartes_reduction.models.security_utils import reject_suspicious_input
+
 
 class DiscountCardPortal(http.Controller):
 
     @http.route("/my/cartes", type="http", auth="user", website=True)
     def portal_discount_cards(self, **kwargs):
+        if reject_suspicious_input(
+            request.env, "/my/cartes", {"query": request.params, **kwargs}
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         return self._render_discount_cards()
 
     @http.route(
@@ -17,6 +23,10 @@ class DiscountCardPortal(http.Controller):
         csrf=True,
     )
     def portal_send_pos_otp(self, **kwargs):
+        if reject_suspicious_input(
+            request.env, "/my/cartes/otp", {"form": request.params, **kwargs}
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         partner = request.env.user.partner_id.commercial_partner_id.sudo()
         issued = partner._issue_pos_otp()
         return self._render_discount_cards(issued)

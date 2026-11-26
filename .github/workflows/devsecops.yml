@@ -1,0 +1,94 @@
+name: DevSecOps
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for secrets (redacted report)
+        run: |
+          mkdir -p security-reports
+          docker run --rm \
+            -v "$PWD:/repo" \
+            zricethezav/gitleaks:v8.28.0 \
+            detect --source=/repo --redact \
+            --report-format=json \
+            --report-path=/repo/security-reports/gitleaks-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-report
+          path: security-reports/gitleaks-report.json
+          if-no-files-found: ignore
+
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Bandit SAST
+        run: |
+          python -m pip install bandit
+          mkdir -p security-reports
+          bandit -r controllers models -f txt -o security-reports/bandit-report.txt -ll
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: security-reports/bandit-report.txt
+          if-no-files-found: ignore
+
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan filesystem
+        run: |
+          mkdir -p security-reports
+          docker run --rm \
+            -v "$PWD:/repo" \
+            aquasec/trivy:0.59.1 \
+            fs --scanners vuln,misconfig \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --format table \
+            --output /repo/security-reports/trivy-scan.txt \
+            /repo
+      - name: Generate CycloneDX SBOM
+        if: always()
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            aquasec/trivy:0.59.1 \
+            fs --format cyclonedx \
+            --output /repo/security-reports/sbom-cyclonedx.json \
+            /repo
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-and-sbom
+          path: |
+            security-reports/trivy-scan.txt
+            security-reports/sbom-cyclonedx.json
+          if-no-files-found: ignore
+
+  nginx-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Nginx configuration
+        run: |
+          docker run --rm \
+            --add-host web:127.0.0.1 \
+            -v "$PWD/nginx/odoo-security.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:stable-alpine nginx -t

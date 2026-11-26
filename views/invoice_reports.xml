@@ -1,8 +1,68 @@
 <odoo>
     <template id="report_invoice_french" inherit_id="account.report_invoice">
-        <xpath expr="//t[@t-set='lang']"
-               position="attributes">
+        <xpath expr="//t[@t-set='lang']" position="attributes">
             <attribute name="t-value">'fr_FR'</attribute>
+        </xpath>
+    </template>
+
+    <template id="report_invoice_ttc" inherit_id="account.report_invoice_document">
+        <xpath expr="//th[@name='th_priceunit']/span" position="replace">
+            <span>Prix unitaire TTC</span>
+        </xpath>
+        <xpath expr="//th[@name='th_subtotal']/span" position="replace">
+            <span>Montant TTC</span>
+        </xpath>
+        <xpath expr="//td[@name='td_price_unit']/span" position="replace">
+            <span class="text-nowrap"
+                  t-out="line.tax_ids.compute_all((1 - line.discount / 100.0) * line.price_unit if line.discount &lt; 0 else line.price_unit, o.currency_id, 1.0, product=line.product_id, partner=o.partner_id, is_refund=o.move_type in ('out_refund', 'in_refund'))['total_included']"
+                  t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+        </xpath>
+        <xpath expr="//td[@name='td_subtotal']/span" position="replace">
+            <span class="text-nowrap" t-field="line.price_total"/>
+        </xpath>
+        <xpath expr="//t[@t-set='current_subtotal'][contains(@t-value, 'line.price_subtotal')]" position="attributes">
+            <attribute name="t-value">current_subtotal + line.price_total</attribute>
+        </xpath>
+    </template>
+
+    <template id="report_saleorder_ttc" inherit_id="sale.report_saleorder_document">
+        <xpath expr="//th[@name='th_priceunit']" position="replace">
+            <th name="th_priceunit" class="text-end">Prix unitaire TTC</th>
+        </xpath>
+        <xpath expr="//th[@name='th_subtotal']/span" position="replace">
+            <span>Montant TTC</span>
+        </xpath>
+        <xpath expr="//td[@name='td_priceunit']" position="replace">
+            <td name="td_priceunit" class="text-end">
+                <span t-out="line.tax_id.compute_all((1 - line.discount / 100.0) * line.price_unit if line.discount &lt; 0 else line.price_unit, doc.currency_id, 1.0, product=line.product_id, partner=doc.partner_shipping_id)['total_included']"
+                      t-options='{"widget": "monetary", "display_currency": doc.currency_id}'/>
+            </td>
+        </xpath>
+        <xpath expr="//td[@name='td_subtotal']/span" position="replace">
+            <span t-field="line.price_total"/>
+        </xpath>
+        <xpath expr="//t[@t-set='current_subtotal'][contains(@t-value, 'line.price_subtotal')]" position="attributes">
+            <attribute name="t-value">current_subtotal + line.price_total</attribute>
+        </xpath>
+    </template>
+
+    <template id="invoice_tax_totals_french" inherit_id="account.document_tax_totals_template">
+        <xpath expr="//tr[hasclass('o_subtotal')]/td/strong[@t-out]" position="replace">
+            <strong t-if="subtotal_index == 0">Montant HT</strong>
+            <strong t-else="" t-out="subtotal['name']"/>
+        </xpath>
+        <xpath expr="//tr[hasclass('o_total')]/td/strong" position="replace">
+            <strong>Total TTC</strong>
+        </xpath>
+    </template>
+
+    <template id="sale_tax_totals_french" inherit_id="sale.document_tax_totals">
+        <xpath expr="//tr[hasclass('o_subtotal')]/td/strong[@t-out]" position="replace">
+            <strong t-if="subtotal_index == 0">Montant HT</strong>
+            <strong t-else="" t-out="subtotal['name']"/>
+        </xpath>
+        <xpath expr="//tr[hasclass('o_total')]/td/strong" position="replace">
+            <strong>Total TTC</strong>
         </xpath>
     </template>
 </odoo>

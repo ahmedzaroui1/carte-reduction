@@ -10,6 +10,8 @@ import os
 from odoo.tools import config
 from sklearn.multioutput import MultiOutputRegressor
 
+from ..models.security_utils import write_ml_model_manifest
+
 _logger = logging.getLogger(__name__)
 
 
@@ -54,6 +56,11 @@ class MLModelTrainer(models.Model):
             raise AccessError(
                 _("Seuls les administrateurs peuvent entraîner le modèle ML.")
             )
+        if os.environ.get("CARTES_ML_MODEL_SHA256"):
+            raise UserError(_(
+                "Le checksum du modèle est géré par la configuration de déploiement; "
+                "l'entraînement doit être publié avec une nouvelle empreinte."
+            ))
         try:
             # 1. Chemin du modèle
             model_dir = os.path.join(config['data_dir'], 'ml_models')
@@ -93,6 +100,11 @@ class MLModelTrainer(models.Model):
 
             # 6. Sauvegarder le modèle
             joblib.dump(model, model_path)
+            checksum = write_ml_model_manifest(model_path)
+            self.env["ir.config_parameter"].sudo().set_param(
+                "cartes_reduction.ml_model_sha256",
+                checksum,
+            )
             _logger.info("Modèle entraîné et sauvegardé dans %s avec %s échantillons", model_path, len(df))
 
             # 7. Sauvegarder les données mises à jour dans le CSV

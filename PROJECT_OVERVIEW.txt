@@ -1,0 +1,1145 @@
+PROJET CARTE DE REDUCTION - DOCUMENTATION COMPLETTE END-TO-END
+============================================================
+
+1. IDENTIFICATION DU PROJET
+
+Nom fonctionnel : Cartes de Réduction / Programme de fidélité omnicanal
+Organisation : Sotufab Distribution Tunisie
+Module Odoo : cartes_reduction
+Version du module : 17.0.1.4.0
+Plateforme ERP : Odoo 17
+Base métier principale : odoo17
+Application principal : http://192.168.108.129:8069
+Proxy d'acces : Nginx
+Base de donnees : PostgreSQL 15
+Conteneurisation : Docker / Docker Compose
+CI/CD : GitLab CI/CD
+Analyse Python : Bandit
+Analyse des conteneurs et dependances : Trivy
+Metriques : Prometheus
+Visualisation : Grafana
+
+Cette documentation presente l'architecture technique complete ainsi que les
+processus operationnels du projet dans son état cible DevSecOps. Elle couvre
+le code source, les donnees, les tests, le deploiement, la supervision et la
+securite. Les informations reelles de mot de passe, cle SSH, jeton GitLab,
+certificat TLS ou cle cryptographique ne doivent jamais etre ajoutees à ce
+fichier.
+
+
+2. OBJECTIFS
+
+Le projet fournit une plateforme de fidélite complete pour les ventes
+professionnelles B2B, les ventes B2C, le commerce en ligne et le point de
+vente. Ses objectifs sont :
+
+- afficher et attribuer des cartes de remise;
+- calculer automatiquement les remises;
+- cumuler les points de fidélite;
+- promouvoir les clients vers les tiers supérieurs;
+- appliquer les remises sur le web, les ventes, les devis et le POS;
+- proteger les avantages contre les abus et les doubles utilisations;
+- suivre le comportement commercial des clients;
+- produire des analyses RFM, CLV, churn et d'association Apriori;
+- fournir des tableaux de bord commerciaux et opérationnels;
+- sécuriser les données sensibles et les opérations administratives;
+- automatiser les tests, les scans de sécurité et le déploiement.
+
+
+3. ARCHITECTURE GLOBALE
+
+Internet / Intranet
+        |
+        v
+Nginx Reverse Proxy
+   |               |
+   v               v
+Odoo Web       Grafana
+Port 8069       Port 3000
+   |
+   +-- PostgreSQL 15
+   |      Base odoo17
+   |      Base e2e disposable
+   |
+   +-- Odoo Filestore
+   |
+   +-- /mnt/extra-addons/cartes_reduction
+   |
+   +-- ML CLV, churn et association rules
+
+Services Docker principaux :
+
+- db : PostgreSQL 15 Alpine avec volume persistant pg-data;
+- web : Odoo 17 avec le module cartes_reduction;
+- odoo-init : initialisation de base et du module;
+- mailpit : verification locale des e-mails;
+- e2e-web : environnement de test non production;
+- nginx : exposition HTTPS et routage;
+- prometheus : collecte des métriques;
+- grafana : visualisation;
+- gitlab-runner : exécution des pipelines.
+
+Les volumes Docker sont séparés du dépôt Git. Ils contiennent les données
+PostgreSQL, le filestore Odoo, les fichiers d'upload et les données persistantes.
+Ils ne doivent jamais etre commites dans GitHub.
+
+
+4. TECHNOLOGIES UTILISEES
+
+Backend ERP :
+- Python;
+- Odoo 17;
+- PostgreSQL 15;
+- OWL / JavaScript Odoo pour certaines interfaces;
+- XML pour les vues;
+- SCSS pour les styles;
+- SQL pour les requêtes analytiques;
+- QWeb pour les rapports;
+- cryptography pour le chiffrement CIN et signatures;
+- qrcode pour les QR de vérification;
+- pandas pour les datasets analytiques;
+- scikit-learn pour les modèles de prédiction;
+- joblib pour les artefacts ML;
+- mlxtend pour les règles Apriori.
+
+Infrastructure :
+- Docker;
+- Docker Compose;
+- Nginx;
+- Linux;
+- Git / GitHub;
+- GitLab CI/CD;
+- GitLab Runner;
+- Prometheus;
+- Grafana;
+- Bandit;
+- Trivy.
+
+
+5. MODULES ET DEPENDANCES ODOO
+
+Le manifest du module depend notamment de :
+
+- base;
+- sale_management;
+- website;
+- account;
+- point_of_sale;
+- loyalty;
+- product;
+- pos_loyalty;
+- sale;
+- sale_loyalty;
+- web;
+- website_sale;
+- portal;
+- payment_demo.
+
+Fonctionnalites chargees :
+
+- vues backend;
+- vues portail;
+- vues dashboards;
+- vues POS;
+- vues CIN;
+- vues audit;
+- vues rapports;
+- vues promotions;
+- vues listes de prix;
+- vues produits;
+- controleurs web;
+- actifs frontend;
+- actifs POS;
+- donnees initiales;
+- migrations;
+- modeles ML;
+- tests automatises.
+
+
+6. TIERS DE FIDELITE
+
+Bronze :
+- remise : 2%;
+- niveau par défaut à l'inscription;
+- seuil : 0 TND depense / 0 point.
+
+Silver :
+- remise : 5%;
+- seuil alternatifs : 40 000 TND depensés sur les 30 derniers jours;
+- ou 4 000 points cumulés.
+
+Gold VIP :
+- remise : 10%;
+- seuil alternatifs : 60 000 TND depensés sur les 30 derniers jours;
+- ou 6 000 points cumulés.
+
+Platinum :
+- remise : 16%;
+- seuil alternatifs : 100 000 TND depensés sur les 30 derniers jours;
+- ou 10 000 points cumulés.
+
+La règle métier utilise le seuil atteint soit par depense glissante, soit par
+cumul de points. Chaque client conserve une seule carte active correspondant
+au plus haut niveau obtenu. La montée en niveau ne doit pas créer plusieurs
+cartes actives simultanées.
+
+
+7. POINTS ET EARNING RULE
+
+La règle commerciale recalibrée est :
+
+10 TND dépensés = 1 point de fidélité
+
+La formule est fondée sur amount_total / 10.0 pour les déductibles.
+L'acquisition s'applique de manière cohérente à :
+
+- commandes boutique / website;
+- devis et commandes Sales;
+- commandes POS;
+- factures validées;
+- paiements complets selon les règles configurées.
+
+Les points ne sont pas simplement recalculés à l'affichage : ils sont produits
+par les modèles du programme, enregistrés dans les données client et utilisés
+par les conditions d'attribution des cartes.
+
+
+8. CARTES DE FIDELITE
+
+Les quatre cartes utilisent une présentation de luxe commune :
+
+- géométrie métallisée diagonale identique;
+- bordure intérieure fine;
+- emblème minimaliste en haut à gauche;
+- titre BRONZE, SILVER, GOLD VIP ou PLATINUM;
+- sous-titre 2%, 5%, 10% ou 16% DE REMISE;
+- nom SOTUFAB DISTRIBUTION TUNISIE;
+- logo de la société en haut à droite;
+- texte FIDÉLITÉ • TND en bas à droite.
+
+Le rendu est produit en haute résolution avec Pillow, puis attaché aux
+enregistrements des cartes et aux assets statiques du module. Les cartes sont
+aussi visibles dans /my/cartes pour le portail.
+
+La source principale des cartes est située dans :
+
+- static/img/cards/
+- static/src/img/
+
+
+9. FLUX DU CLIENT PORTAIL
+
+1. Le client ouvre l'application ou utilise l'inscription / login.
+2. Odoo vérifie l'utilisateur et la relation partner.
+3. L'utilisateur accede à /my/cartes.
+4. Le système récupère la carte active la plus élevée.
+5. Il affiche le solde de points.
+6. Il calcule les deux prochaines cibles Silver, Gold ou Platinum.
+7. Il affiche les bars de progression en depense 30 jours et en points cumulés.
+8. Il affiche les avantages, les récompenses et les notifications.
+9. Le client peut initier ou consulter une vérification QR/OTP selon les droits.
+
+Les résultats sont disponibles pour les clients autorisés par les record rules.
+Un visiteur anonyme est redirigé vers /web/login.
+
+
+10. FLUX DE LA BOUTIQUE
+
+1. Le client parcourt /shop.
+2. Il sélectionne des produits de mobilier de bureau.
+3. Odoo applique les listes de prix et la fiscalité tunisie TND.
+4. Le solde de la carte est détecté pour l'utilisateur.
+5. Une remise valide est appliquée au panier ou à la ligne.
+6. Le panier affiche le montant TTC et la remise calculée.
+7. Le paiement d'essai ou réel est utilisé.
+8. La commande est confirmée.
+9. Les points sont recalculés.
+10. Les règles de tier peuvent promouvoir le client.
+11. Les statistiques omnicanales sont recalculées.
+12. Une notification ou un e-mail peut être envoyé.
+
+
+11. FLUX DE VENTE SALES
+
+1. Un utilisateur Sales crée un devis ou une commande.
+2. Il sélectionne un partenaire B2B.
+3. Les lignes produisent les quantités, prix et TVA.
+4. La carte active du partenaire est recherchée.
+5. La remise applicable est contrôlée côté serveur.
+6. Le devis peut être confirmé.
+7. Une facture peut être créée pour la commande validée.
+8. Les paiements comptables confirment la réalisation commerciale.
+9. Les points et statistiques sont recalculés.
+10. Le partenaire peut monter de tier.
+
+
+12. FLUX POS
+
+1. caissier.sotufab ou un caissier autorisé ouvre une session POS.
+2. Le caissier sélectionne les produits.
+3. Le partenaire ou client est identifié.
+4. Les cartes disponibles sont affichées.
+5. Une vérification OTP ou QR peut être demandée.
+6. Le serveur compare le digest signé et le nonce.
+7. Une seule utilisation est autorisée selon le cooldown.
+8. Le POS applique la remise validée.
+9. Le paiement est enregistré.
+10. La commande POS devient paid.
+11. Les points, cumulés et tiers sont recalculés.
+12. Le paiement, la carte et l'audit sont liés.
+
+La vérification POS ne demande pas de PIN personnel. Elle utilise des mécanismes
+de challenge, de digest constant-time, de nonce et de verrouillage PostgreSQL.
+Les doubles dépenses sont protégées par FOR UPDATE NOWAIT et une fenêtre
+temporelle.
+
+
+13. REMISES ET PROMOTIONS
+
+Le module permet :
+
+- cartes permanentes;
+- cartes temporaires;
+- promotions planifiées;
+- remises de carte;
+- remises de lignes;
+- remises de panier;
+- programmes de fidélité;
+- récompenses par points;
+- renouvellement de carte;
+- conditions de dépense;
+- conditions de points;
+- filtres VIP;
+- exclusions ou alternatives de conditions.
+
+Les domaines manuels ne doivent pas être évalués avec eval dans les
+récompenses sales. Les montants de remise doivent être recalculés côté serveur
+et la propriété ownership des lignes est vérifiée.
+
+
+14. MODELES ET PROGRAMMES
+
+Le module contient des modèles pour :
+
+- cartes de réduction;
+- attributions de carte;
+- conditions d'obtention;
+- cartes clients;
+- programmes de fidélité;
+- règles de fidélité;
+- récompenses;
+- promotions;
+- règles promotionnelles;
+- notifications;
+- partenaires;
+- lignes Sales;
+- commandes POS;
+- sécurité CIN;
+- audit sécurité;
+- rapports;
+- dashboards;
+- association de produits;
+- wizard de renouvellement;
+- wizard de récompenses;
+- wizard de sélection.
+
+
+15. ANALYTICS
+
+Le module produit plusieurs vues analytiques :
+
+- achats totaux;
+- achats website;
+- achats POS;
+- achats Sales;
+- nombre de commandes;
+- fréquence d'achat;
+- dernier achat;
+- anciennete;
+- montant moyen;
+- CLV prédit;
+- risque de churn;
+- score RFM;
+- top partenaires;
+- répartition des tiers;
+- produits associés;
+- règles Apriori;
+- support;
+- confiance;
+- lift.
+
+RFM :
+- récence;
+- fréquence;
+- montant monétaire.
+
+CLV :
+- la valeur CLV sur 12 mois est une estimation;
+- elle utilise l'ordre moyen, la cadence annualisée et la probabilité de départ;
+- elle ne représente pas automatiquement un bénéfice comptable.
+
+Churn :
+- la probabilité de churn combine le dernier achat, l'anciennete,
+  la fréquence et la récence;
+- les comptes sans activité récente deviennent des comptes à risque;
+- les nouveaux acheteurs peuvent avoir un score distinct.
+
+
+16. APRIORI
+
+Apriori extrait les associations entre produits confirmés.
+Les données sources sont :
+
+- commandes Sales confirmées;
+- commandes POS paid;
+- lignes contenant les références produits.
+
+Chaque résultat donne :
+
+- produits antecedents;
+- produits consequents;
+- support;
+- confiance;
+- lift;
+- règle manuelle ou générée;
+- date de recalcul.
+
+Les bundles récurrents de mobilier de bureau sont utilisés pour améliorer les
+règles croisées et les suggestions du POS.
+
+
+17. SECURITE APPLICATION
+
+Mesures d'architecture :
+
+- RBAC Odoo;
+- ACL personnalisées;
+- record rules par partenaire;
+- menus sensibles restreints;
+- cryptage Fernet des CIN;
+- index HMAC constant-time;
+- révélation CIN auditable;
+- audit SHA-256 chainé;
+- UUID d'événement;
+- payload canonique;
+- prev_hash;
+- entry_hash;
+- verrouillage transactionnel;
+- OTP one-time;
+- QR signé;
+- binding carte/commande;
+- constante-time digest comparison;
+- limite de tentatives;
+- cooldown de carte;
+- protection des lignes POS;
+- recalcul serveur des remises.
+
+Le chainage d'audit assure la détection de modification de la chaîne dans Odoo.
+Il ne garantit pas la protection contre un DBA ayant accès au serveur, aux
+snapshots, au disque ou aux clés. Pour un usage juridique, une copie externe
+des journaux ou un service d'audit hors Odoo est recommandé.
+
+
+18. GESTION DES SECRETS
+
+Les secrets sont fournis par Docker Compose via le fichier .env local.
+Ils ne doivent pas être commites dans Git.
+
+Variables obligatoires :
+
+- POSTGRES_DB;
+- POSTGRES_USER;
+- POSTGRES_PASSWORD;
+- ODOO_PORT;
+- CARTES_HMAC_SECRET;
+- CARTES_FERNET_KEY;
+- CARTES_ML_MODEL_SHA256 si le modèle ML est chargé.
+
+Les valeurs réelles doivent être stockées dans :
+
+- GitLab protected variables;
+- un secret manager;
+- ou l'environnement privé du runner.
+
+Les variables doivent être masquées dans les logs CI.
+Les fichiers odoo.conf, .env, backups SQL, dumps PostgreSQL et clés privées
+sont exclus du dépôt.
+
+
+19. MODELE ML
+
+Le modèle CLV/churn est entraîné sur les données historiques.
+Les datasets de base sont :
+
+- ml_model/dataset_achats.csv;
+- ml_model/dataset_clients.csv.
+
+Le script principal est :
+
+- ml_model/train_recommendation.py.
+
+L'artefact sauvegardé doit être vérifié avant chargement.
+Son SHA-256 doit être enregistré dans le paramètre restreint
+cartes_reduction.ml_model_sha256 ou dans la variable
+CARTES_ML_MODEL_SHA256.
+
+Si le modèle est modifié, son checksum doit être recalculé.
+Le chargement échoue fermement en cas de checksum manquant, invalide ou
+différent.
+Chaque échec peut générer un événement d'audit.
+
+
+20. DONNEES DEMO SOTUFAB
+
+L'environnement production du projet contient une entreprise
+Sotufab Distribution Tunisie avec données TND et TVA Tunisienne 19%.
+
+Segments métier historiques :
+
+- 2 comptes Platinum avec achats B2B fréquents;
+- 3 comptes Gold;
+- 4 comptes Silver;
+- 6 comptes Bronze B2C;
+- 15 comptes partenaires au total;
+- ensembles de mobiliers de bureau;
+- commandes Sales confirmées;
+- commandes POS paid;
+- historique 36 mois lorsque l'environnement cible est chargé.
+
+La base contient aussi les données de vente, les factures, les paiements, les
+sessions POS, les cartes actives, les notifications et les statistiques.
+
+L'ordre synthétique doit être séparé des vraies données avant toute livraison
+commerciale. Ces informations peuvent être utilisées pour démonstration,
+jury, recette ou formation.
+
+
+21. DOCKER ET DEMARRAGE
+
+Commande locale :
+
+cd /chemin/carte-reduction
+docker compose up -d --build
+docker compose ps
+
+Après arrêt PC/serveur :
+
+sudo systemctl start docker
+cd /chemin/carte-reduction
+docker compose up -d
+docker compose ps
+
+Vérifications :
+
+docker compose logs --tail=100 web
+docker compose logs --tail=100 db
+curl -I http://127.0.0.1:8069/web/login
+
+PostgreSQL :
+
+docker compose exec db pg_isready -U odoo -d odoo17
+
+La base reste locale dans le volume Docker pg-data.
+Docker Compose peut restaurer les conteneurs après reboot si la politique
+restart est en unless-stopped.
+
+
+22. ACCES WEB ET PORTAIL
+
+Odoo principal :
+- /web/login : authentification;
+- /shop : boutique;
+- /my/cartes : cartes du partenaire;
+- /web/signup : inscription;
+- /pos/ui : interface POS;
+- /shop/cart : panier;
+- /mail : interface Mailpit locale si exposée.
+
+Les URLs exactes doivent être fournie par Nginx en HTTPS dans l'environnement
+de production.
+
+
+23. NGINX
+
+Nginx agit comme reverse proxy HTTPS devant Odoo.
+
+Fonctions prévues :
+
+- TLS 1.2 / TLS 1.3;
+- redirection HTTP vers HTTPS;
+- proxy_pass vers Odoo;
+- headers de sécurité;
+- compression;
+- limites de taille upload;
+- keepalive;
+- static cache;
+- healthcheck;
+- restriction administrative;
+- protection des endpoints sensibles.
+
+Nginx ne remplace pas le firewall ni les record rules Odoo.
+Le port backend 8069 ne doit pas être exposé directement à Internet.
+
+Exemple conceptuel :
+
+server {
+    listen 443 ssl;
+    server_name domaine.example;
+
+    location / {
+        proxy_pass http://127.0.0.1:8069;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+
+
+24. GITLAB CI/CD
+
+GitLab CI fournit une chaîne d'intégration et de livraison.
+
+Pipeline recommandé :
+
+1. validate
+   - git diff;
+   - syntaxe Python;
+   - syntaxe XML;
+   - Docker Compose config;
+   - secret detection.
+
+2. test
+   - démarrage PostgreSQL disposable;
+   - démarrage Odoo;
+   - module upgrade;
+   - --test-enable --test-tags /cartes_reduction;
+   - 0 failure / 0 error.
+
+3. security
+   - Bandit sur Python;
+   - Trivy sur le filesystem;
+   - Trivy sur l'image Docker;
+   - dependency scan;
+   - secret scan.
+
+4. build
+   - construction de l'image cartes-reduction-odoo;
+   - tagging par commit SHA;
+   - push vers GitLab Container Registry.
+
+5. deploy staging
+   - base e2e;
+   - conteneurs staging;
+   - smoke tests;
+   - vérification HTTP.
+
+6. deploy production
+   - approbation manuelle;
+   - backup obligatoire;
+   - pull de l'image approuvée;
+   - upgrade du module;
+   - restart web;
+   - health checks;
+   - rollback sur échec.
+
+Les productions ne peuvent pas être mises à jour directement depuis des
+modifications locales non commites.
+
+
+25. BANDIT
+
+Bandit analyse le code Python du module pour détecter :
+
+- eval / exec;
+- shell et subprocess;
+- secrets codés en dur;
+- hash faibles;
+- pickle unsafe;
+- asserts;
+- désérialisation unsafe;
+- appels dangereux;
+- mauvaise configuration de sécurité.
+
+Les résultats sont classés par confiance et gravité.
+Les findings critiques ou élevés bloquent un job jusqu'à correction ou
+acceptation documentée.
+
+Commande exemple :
+
+bandit -r controllers models ml_model hooks.py -ll
+
+
+26. TRIVY
+
+Trivy analyse :
+
+- Dockerfile;
+- image Docker;
+- OS packages;
+- bibliothèques Python;
+- secrets;
+- configurations Kubernetes ou Compose;
+- CVE critiques et élevées.
+
+Les seuils minimum doivent bloquer :
+
+- HIGH;
+- CRITICAL;
+- secrets confirmés;
+- vulnerabilities avec exploit disponible.
+
+Commande exemple :
+
+trivy fs --severity HIGH,CRITICAL .
+trivy image --severity HIGH,CRITICAL cartes-reduction-odoo:17
+
+
+27. PROMETHEUS
+
+Prometheus collecte les métriques techniques.
+
+Mesures recommandées :
+
+- disponibilité du conteneur;
+- CPU;
+- mémoire;
+- réseau;
+- utilisation disque;
+- restart count;
+- temps HTTP;
+- erreurs HTTP;
+- latence PostgreSQL;
+- nombre de workers Odoo;
+- sessions POS;
+- erreurs module;
+- audit events;
+- failed OTP;
+- QR/OTP reuses;
+- nombre de promotions actives.
+
+Le scraping est limité au réseau interne.
+Les exporters nécessaires peuvent inclure :
+
+- node_exporter;
+- postgres_exporter;
+- cadvisor;
+- un exporter Odoo personnalisé;
+- nginx-prometheus-exporter.
+
+
+28. GRAFANA
+
+Grafana visualise Prometheus.
+
+Dashboards recommandés :
+
+- Infrastructure : CPU, RAM, disque, containers;
+- Application : HTTP, Odoo workers, erreurs;
+- Database : connexions, taille, verrouillages, latence;
+- POS : sessions, paiements, OTP/QR;
+- Loyalty : tiers, remises, points;
+- Business : ventes, RFM, CLV, churn;
+- Security : audit, tentatives, lockouts;
+- CI/CD : build, test, scan, deployment.
+
+Les tableaux Grafana doivent utiliser les sources limitées aux équipes
+autorisées.
+Les accès doivent être contrôlés par authentification forte.
+
+
+29. LOGGING ET OBSERVABILITE
+
+Sources de logs :
+
+- logs Docker Odoo;
+- logs PostgreSQL;
+- logs Nginx;
+- logs POS;
+- logs GitLab Runner;
+- logs audit Odoo;
+- logs Prometheus;
+- logs Grafana;
+- événements de sécurité;
+- événements ML.
+
+Les logs ne doivent pas contenir :
+
+- mots de passe;
+- OTP;
+- CIN complet;
+- cle HMAC;
+- clé Fernet;
+- jetons;
+- cookies;
+- secrets PostgreSQL.
+
+
+30. TESTS AUTOMATISES
+
+Le dossier tests contient notamment :
+
+- tests analytics;
+- tests discounts;
+- tests workflow de cartes;
+- tests POS;
+- tests security;
+- tests VIP;
+- tests pass1;
+- tests pass2.
+
+Exécution recommandée :
+
+docker compose exec web odoo \
+  -c /mnt/extra-addons/cartes_reduction/odoo.conf \
+  -d odoo17_e2e \
+  --test-enable \
+  --test-tags /cartes_reduction \
+  --stop-after-init
+
+Critères :
+
+- 0 failed;
+- 0 errors;
+- tests sur base disposable;
+- pas de production reset;
+- pas de données réelles dans le clone;
+- rapport archivé comme artifact.
+
+
+31. SAUVEGARDE POSTGRESQL
+
+Sauvegarde custom dump :
+
+docker exec cartes_reduction-db-1 pg_dump \
+  -U odoo -d odoo17 -F c \
+  -f /tmp/odoo17-production.dump
+
+Copie depuis le conteneur :
+
+docker cp cartes_reduction-db-1:/tmp/odoo17-production.dump \
+  ./odoo17-production.dump
+
+La sauvegarde doit être :
+
+- chiffrée;
+- hors serveur;
+- horodatée;
+- testée;
+- stockée en plusieurs emplacements;
+- protégée par permissions.
+
+
+32. SAUVEGARDE ODOO FILESTORE
+
+Sauvegarder le volume Odoo:
+
+docker run --rm \
+  -v cartes_reduction_odoo-data:/data \
+  -v "$PWD":/backup \
+  alpine tar czf /backup/odoo-filestore.tar.gz -C /data .
+
+Le fichier contient les pièces jointes, logos, images de cartes, documents
+et données filestore. Il doit être restauré avec la bonne version de base.
+
+
+33. RESTAURATION
+
+Avant restauration :
+
+1. arrêter le web;
+2. faire une sauvegarde de l'état actuel;
+3. vérifier la compatibilité de version;
+4. restaurer PostgreSQL;
+5. restaurer le filestore;
+6. démarrer PostgreSQL;
+7. démarrer Odoo;
+8. upgrade module;
+9. run tests e2e;
+10. vérifier les endpoints;
+11. vérifier les données Otufab;
+12. vérifier les cartes;
+13. vérifier les paiements;
+14. vérifier l'audit.
+
+Ne pas restaurer une base de production dans un environnement CI.
+
+
+34. RESEAU ET PORTS
+
+Ports externes typiques :
+
+- 80 : HTTP redirigé par Nginx;
+- 443 : HTTPS;
+- 8069 : Odoo backend, idéalement interne;
+- 8071 / 8072 : services techniques, non publics;
+- 8075 : clone e2e;
+- 8025 : Mailpit UI locale;
+- 1025 : Mailpit SMTP;
+- 5432 : PostgreSQL, non public;
+- 3000 : Grafana, idéalement interne/VPN;
+- 9090 : Prometheus, interne.
+
+Les services ne doivent pas être exposés par tous les ports du firewall.
+Seuls Nginx HTTPS et éventuellement VPN doivent être publics.
+
+
+35. PERSISTENCE
+
+Docker volumes :
+
+- pg-data;
+- odoo-data.
+
+Les contenus sont :
+
+- base PostgreSQL;
+- sessions Odoo;
+- filestore;
+- fichiers uploadés;
+- pièces jointes;
+- images;
+- rapports;
+- artefacts clients.
+
+Les volumes doivent être sauvegardés séparément.
+Une sauvegarde Git ne remplace pas une sauvegarde database.
+
+
+36. MISE A JOUR DU MODULE
+
+Étapes :
+
+docker compose build web
+docker compose stop web
+docker compose up -d db
+docker compose run --rm odoo-init
+docker compose up -d web
+docker compose restart web
+
+Contrôles après mise à jour :
+
+- /web/login;
+- /shop;
+- /my/cartes;
+- /pos/ui;
+- journal Odoo;
+- journal PostgreSQL;
+- audit chain;
+- tier cards;
+- ML checksum;
+- association rules.
+
+
+37. REGLES GIT
+
+Le dépôt doit contenir :
+
+- code source;
+- manifest;
+- Dockerfile;
+- Docker Compose;
+- tests;
+- migrations;
+- assets;
+- vues;
+- modèles;
+- documentation technique;
+- fichiers d'exemple.
+
+Ne jamais committer :
+
+- .env;
+- odoo.conf;
+- __pycache__;
+- *.pyc;
+- dumps;
+- backups;
+- logs;
+- secrets;
+- tokens;
+- mots de passe;
+- cartes locales exportées;
+- exports clients.
+
+Commits recommandés :
+
+- feat:;
+- fix:;
+- docs:;
+- security:;
+- test:;
+- ci:;
+- deploy:;
+- chore:;
+- refactor:;
+
+
+38. DEVSECOPS
+
+Stages obligatoires :
+
+- plan;
+- code review;
+- unit tests;
+- static analysis;
+- secret scan;
+- dependency scan;
+- container scan;
+- build;
+- disposable database test;
+- deploy staging;
+- approval;
+- deploy production;
+- smoke test;
+- backup;
+- rollback.
+
+Security gates :
+
+- aucune clé secrète dans Git;
+- aucun CRITICAL Trivy non accepté;
+- aucun secret détecté;
+- Bandit HIGH examine ou bloque;
+- tests 0 fail;
+- migration validée;
+- backup vérifié;
+- signature ou approval requis;
+- image immutable;
+- production healthcheck validé.
+
+
+39. MODELE DE RISK
+
+Risques principaux :
+
+- perte de base PostgreSQL;
+- perte du filestore;
+- fuite de clé HMAC/Fernet;
+- mauvaise mise à jour du module;
+- double remise POS;
+- double dépense OTP;
+- chaîne d'audit modifiée;
+- modèle ML tampered;
+- dépendances vulnérables;
+- image Docker obsolète;
+- exposer PostgreSQL;
+- exposer Grafana sans login;
+- exposer Prometheus;
+- Nginx mal configuré;
+- certificat expiré;
+- backup non testé;
+- CI utilisant la production;
+- retour de données synthétiques en jury.
+
+Mitigation :
+
+- secrets management;
+- backups externalisés;
+- restore tests;
+- least privilege;
+- RBAC;
+- audit immutable;
+- checksum ML;
+- image pinning;
+- Trivy gates;
+- disposable test database;
+- deployment approval;
+- monitoring;
+- alerting.
+
+
+40. PROCEDURE INCIDENT
+
+En cas de problème :
+
+1. identifier l'heure;
+2. conserver les logs;
+3. ne pas supprimer les volumes;
+4. arrêter l'exposition publique si nécessaire;
+5. vérifier la base;
+6. vérifier Odoo web;
+7. vérifier PostgreSQL;
+8. vérifier Nginx;
+9. vérifier TLS;
+10. vérifier les variables d'environnement;
+11. vérifier les migrations;
+12. rollback à l'image approuvée;
+13. restaurer le backup si nécessaire;
+14. vérifier l'audit;
+15. documenter la cause;
+16. corriger le pipeline;
+17. relancer les tests.
+
+
+41. VERIFICATION FINALE
+
+Checklist HTTP :
+
+- /web/login HTTP 200;
+- /shop HTTP 200;
+- /my/cartes redirection/login ou 200 pour utilisateur;
+- /pos/ui accessible au caissier;
+- cert TLS valide;
+- Grafana HTTPS/login actif;
+- Prometheus inaccessible directement;
+- PostgreSQL non exposé;
+- Mailpit seulement local.
+
+Checklist base :
+
+- 4 tiers présents;
+- 1 seule carte active par client;
+- points selon 10 TND = 1 point;
+- 2 comptes Platinum;
+- 3 comptes Gold;
+- 4 comptes Silver;
+- 6 comptes Bronze;
+- 160+ commandes/test;
+- RFM calculé;
+- CLV calculé;
+- churn calculé;
+- Apriori calculé;
+- audit chain valide;
+- ML checksum valide.
+
+
+42. COMMANDES UTILES
+
+Etat Docker :
+
+docker compose ps
+docker compose logs -f --tail=100 web
+docker compose logs -f --tail=100 db
+
+Redémarrage :
+
+docker compose restart web
+docker compose restart db
+
+Upgrade du module :
+
+docker compose exec web odoo \
+  -c /mnt/extra-addons/cartes_reduction/odoo.conf \
+  -d odoo17 \
+  -u cartes_reduction \
+  --stop-after-init
+
+Tests :
+
+docker compose exec web odoo \
+  -c /mnt/extra-addons/cartes_reduction/odoo.conf \
+  -d odoo17_e2e_tnd \
+  --test-enable \
+  --test-tags /cartes_reduction \
+  --stop-after-init
+
+Git :
+
+git status
+git pull origin main
+git add .
+git commit -m "..."
+git push origin main
+
+Fin de document.

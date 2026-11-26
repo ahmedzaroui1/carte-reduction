@@ -3,61 +3,254 @@
         <xpath expr="//div[@id='wrapwrap']" position="attributes">
             <attribute name="t-attf-class" add="sotufab-storefront" separator=" "/>
         </xpath>
-        <xpath expr="//div[@id='wrapwrap']/*[1]" position="before">
-            <section class="sotufab-brand-strip" aria-label="Sotufab Distribution Tunisie">
-                <a href="/shop" class="sotufab-brand-strip__identity">
-                    <img t-if="website.company_id.logo"
-                         t-att-src="'/logo.png?company=%s' % website.company_id.id"
-                         alt="Sotufab Distribution Tunisie"/>
-                    <span>
+        <xpath expr="//header" position="replace">
+            <header class="sotufab-market-header" t-if="not no_header">
+                <nav class="sotufab-market-header__inner" aria-label="Navigation principale">
+                    <a href="/shop" class="sotufab-market-brand" aria-label="Sotufab Distribution Tunisie — Boutique">
+                        <img t-if="website.company_id.logo"
+                             t-att-src="'/logo.png?company=%s' % website.company_id.id"
+                             alt="Sotufab Distribution Tunisie"/>
+                        <span t-else="">Sotufab</span>
+                    </a>
+
+                    <form action="/shop" method="get" role="search" class="sotufab-market-search">
+                        <label class="visually-hidden" for="sotufab-market-search-input">Rechercher un produit</label>
+                        <input id="sotufab-market-search-input"
+                               type="search"
+                               name="search"
+                               placeholder="Rechercher un produit, une référence…"
+                               t-att-value="request.params.get('search', '')"/>
+                        <button type="submit">
+                            <i class="fa fa-search" aria-hidden="true"/>
+                            <span>Rechercher</span>
+                        </button>
+                    </form>
+
+                    <div class="sotufab-market-actions">
+                        <a href="/shop" class="sotufab-market-action">
+                            <i class="fa fa-shopping-basket" aria-hidden="true"/>
+                            <span>Boutique</span>
+                        </a>
+                        <a t-att-href="'/web/login?redirect=%2Fmy%2Fcartes' if request.env.user._is_public() else '/my/cartes'"
+                           class="sotufab-market-action">
+                            <i class="fa fa-credit-card" aria-hidden="true"/>
+                            <span>Mes Cartes</span>
+                        </a>
+                        <a t-att-href="'/web/login?redirect=%2Fmy%2Forders' if request.env.user._is_public() else '/my/orders'"
+                           class="sotufab-market-action">
+                            <i class="fa fa-list-alt" aria-hidden="true"/>
+                            <span>Mes Commandes</span>
+                        </a>
+                        <a href="/shop/cart" class="sotufab-market-action sotufab-market-action--cart">
+                            <span class="sotufab-market-cart-icon">
+                                <i class="fa fa-shopping-cart" aria-hidden="true"/>
+                                <sup class="my_cart_quantity"
+                                     t-esc="request.session.get('website_sale_cart_quantity', 0)"/>
+                            </span>
+                            <span>Panier</span>
+                        </a>
+                        <div t-if="request.env.user._is_public()" class="sotufab-market-user">
+                            <a href="/web/login?redirect=%2Fshop" class="sotufab-market-user__link">
+                                <i class="fa fa-user" aria-hidden="true"/>
+                                <span>Connexion</span>
+                            </a>
+                        </div>
+                        <div t-else="" class="dropdown sotufab-market-user">
+                            <button type="button"
+                                    class="sotufab-market-user__link"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                <i class="fa fa-user-circle" aria-hidden="true"/>
+                                <span class="sotufab-market-user__name" t-esc="request.env.user.name"/>
+                                <i class="fa fa-angle-down" aria-hidden="true"/>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                <a class="dropdown-item" href="/my">Mon compte</a>
+                                <a class="dropdown-item" href="/my/orders">Mes commandes</a>
+                                <a class="dropdown-item" href="/my/cartes">Mes cartes</a>
+                                <a class="dropdown-item" href="/web/session/logout?redirect=%2Fshop">Déconnexion</a>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            </header>
+        </xpath>
+        <xpath expr="//footer[@id='bottom']" position="replace">
+            <footer id="bottom" class="sotufab-market-footer" t-if="not no_footer">
+                <div class="sotufab-market-footer__inner">
+                    <div>
                         <strong>Sotufab Distribution Tunisie</strong>
-                        <small>Votre boutique officielle</small>
-                    </span>
-                </a>
-                <a href="/shop" class="sotufab-brand-strip__cta">
-                    Découvrir la boutique <i class="fa fa-arrow-right" aria-hidden="true"/>
-                </a>
+                        <p>Mobilier professionnel et équipement de bureau en Tunisie.</p>
+                    </div>
+                    <nav aria-label="Liens de pied de page">
+                        <a href="/shop">Boutique</a>
+                        <a href="/contactus">Nous contacter</a>
+                        <a href="/my/orders">Mes commandes</a>
+                    </nav>
+                    <small>Sotufab Distribution Tunisie. Tous droits réservés.</small>
+                </div>
+            </footer>
+        </xpath>
+    </template>
+
+    <template id="sotufab_shop_hero" inherit_id="website_sale.products">
+        <xpath expr="//div[hasclass('products_header')]" position="before">
+            <section t-if="not category" class="sotufab-market-hero">
+                <div class="sotufab-market-hero__content">
+                    <span class="sotufab-market-hero__eyebrow">Le mobilier professionnel, simplement</span>
+                    <h1>Équipez vos espaces de travail</h1>
+                    <p>Jusqu’à <strong>16 % de remise fidélité immédiate</strong> sur le mobilier professionnel.</p>
+                    <a t-att-href="'/web/login?redirect=%2Fmy%2Fcartes' if request.env.user._is_public() else '/my/cartes'"
+                       class="sotufab-market-hero__cta">
+                        Découvrir mes avantages
+                        <i class="fa fa-arrow-right" aria-hidden="true"/>
+                    </a>
+                </div>
+                <div class="sotufab-market-hero__mark" aria-hidden="true">
+                    <i class="fa fa-building"/>
+                </div>
             </section>
         </xpath>
-        <xpath expr="//div[@id='wrapwrap']" position="inside">
-            <t t-set="sotufab_is_public" t-value="request.env.user._is_public()"/>
-            <t t-set="sotufab_orders_url"
-               t-value="'/web/login?redirect=%2Fmy%2Forders' if sotufab_is_public else '/my/orders'"/>
-            <t t-set="sotufab_cards_url"
-               t-value="'/web/login?redirect=%2Fmy%2Fcartes' if sotufab_is_public else '/my/cartes'"/>
-            <nav class="sotufab-quick-dock" aria-label="Accès rapide Sotufab">
-                <a class="sotufab-quick-dock__brand" href="/shop"
-                   aria-label="Sotufab Distribution Tunisie — Boutique">
-                    <img t-if="website.company_id.logo"
-                         t-att-src="'/logo.png?company=%s' % website.company_id.id"
-                         alt=""/>
-                    <span>Sotufab</span>
-                </a>
-                <a href="/shop"
-                   t-att-class="'sotufab-quick-dock__link is-active' if request.httprequest.path.startswith('/shop') else 'sotufab-quick-dock__link'">
-                    <i class="fa fa-shopping-basket" aria-hidden="true"/>
-                    <span>Boutique</span>
-                </a>
-                <a t-att-href="sotufab_orders_url"
-                   t-att-class="'sotufab-quick-dock__link is-active' if request.httprequest.path.startswith('/my/orders') else 'sotufab-quick-dock__link'"
-                   t-att-aria-label="'Mes Commandes — connexion requise' if sotufab_is_public else 'Mes Commandes'">
-                    <i class="fa fa-truck" aria-hidden="true"/>
-                    <span>Mes Commandes</span>
-                    <small t-if="sotufab_is_public">Connexion</small>
-                </a>
-                <a t-att-href="sotufab_cards_url"
-                   t-att-class="'sotufab-quick-dock__link is-active' if request.httprequest.path.startswith('/my/cartes') else 'sotufab-quick-dock__link'"
-                   t-att-aria-label="'Mes Cartes — connexion requise' if sotufab_is_public else 'Mes Cartes'">
-                    <i class="fa fa-credit-card" aria-hidden="true"/>
-                    <span>Mes Cartes</span>
-                    <small t-if="sotufab_is_public">Connexion</small>
-                </a>
-                <a href="/shop/cart" class="sotufab-quick-dock__link">
-                    <i class="fa fa-shopping-basket" aria-hidden="true"/>
-                    <span t-if="sotufab_is_public">Continuer en Invité / Panier</span>
-                    <span t-else="">Mon Panier</span>
-                </a>
-            </nav>
+    </template>
+
+    <template id="sotufab_product_loyalty_badge" inherit_id="website_sale.products_item">
+        <xpath expr="//div[hasclass('oe_product_image')]" position="inside">
+            <span class="sotufab-product-loyalty-badge">Jusqu’à −16 % fidélité</span>
+        </xpath>
+    </template>
+
+    <template id="sotufab_cart_heading" inherit_id="website_sale.cart">
+        <xpath expr="//h3[hasclass('mb-4')]" position="replace">
+            <h1 class="sotufab-cart-heading">Votre panier</h1>
+        </xpath>
+    </template>
+
+    <template id="sotufab_demo_checkout_fr" inherit_id="payment_demo.express_checkout_form">
+        <xpath expr="//div[hasclass('modal-content')]" position="attributes">
+            <attribute name="class" add="sotufab-demo-payment-modal" separator=" "/>
+        </xpath>
+        <xpath expr="//div[@name='o_express_checkout_container']/button" position="replace">
+            <button type="button"
+                    class="btn btn-primary mt-2 w-100 sotufab-payment-primary"
+                    data-bs-toggle="modal"
+                    t-attf-data-bs-target="#o_payment_demo_modal_{{provider_sudo.id}}"
+                    aria-label="Paiement">
+                Paiement
+            </button>
+        </xpath>
+        <xpath expr="//h5[@id='o_payment_demo_modal_label']" position="replace">
+            <h5 class="modal-title" id="o_payment_demo_modal_label">Paiement sécurisé — Sotufab Distribution Tunisie</h5>
+        </xpath>
+        <xpath expr="//span[contains(@class, 'text-bg-warning')]" position="replace"/>
+        <xpath expr="//button[@data-bs-dismiss='modal']" position="attributes">
+            <attribute name="aria-label">Fermer</attribute>
+        </xpath>
+        <xpath expr="//div[@class='modal-body']" position="inside">
+            <div class="sotufab-demo-payment-notice" id="sotufab-demo-no-real-card" role="status">
+                Paiement Sandbox de démonstration PFE — Aucune donnée bancaire réelle n'est traitée.
+            </div>
+        </xpath>
+        <xpath expr="//t[@t-set='submit_button_label']" position="replace">
+            <t t-set="submit_button_label">Payer maintenant</t>
+        </xpath>
+    </template>
+
+    <template id="sotufab_demo_payment_details_fr" inherit_id="payment_demo.payment_details">
+        <xpath expr="//div[hasclass('col-12', 'col-md', 'mt-0', 'mb-0')][.//input[@id='customer_input']]" position="replace">
+            <div class="col-12 sotufab-demo-card-form" aria-describedby="sotufab-demo-no-real-card">
+                <input type="hidden" id="customer_input" value="Carte de démonstration"/>
+                <div class="mb-3">
+                    <label for="sotufab-demo-cardholder">Titulaire de la carte</label>
+                    <input type="text" id="sotufab-demo-cardholder" class="form-control"
+                           value="Client de démonstration" readonly="readonly" autocomplete="off"/>
+                </div>
+                <div class="mb-3">
+                    <label for="sotufab-demo-card-number">Numéro de carte</label>
+                    <input type="text" id="sotufab-demo-card-number" class="form-control"
+                           value="4242 •••• •••• 4242" readonly="readonly" autocomplete="off"/>
+                </div>
+                <div class="row g-3">
+                    <div class="col-7">
+                        <label for="sotufab-demo-card-expiry">Date d’expiration</label>
+                        <input type="text" id="sotufab-demo-card-expiry" class="form-control"
+                               value="MM / AA" readonly="readonly" autocomplete="off"/>
+                    </div>
+                    <div class="col-5">
+                        <label for="sotufab-demo-card-cvc">Code CVC</label>
+                        <input type="text" id="sotufab-demo-card-cvc" class="form-control"
+                               value="•••" readonly="readonly" autocomplete="off"/>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+        <xpath expr="//div[hasclass('col-12', 'col-md', 'mb-0')][.//select[@id='simulated_payment_state']]" position="replace">
+            <input type="hidden" id="simulated_payment_state" value="done"/>
+        </xpath>
+    </template>
+
+    <template id="sotufab_demo_shipping_fields_fr" inherit_id="payment_demo.express_inline_form">
+        <xpath expr="//div[@t-if='shipping_info_required']" position="attributes">
+            <attribute name="class" add="sotufab-demo-shipping" separator=" "/>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_name']/small" position="replace">
+            <small><b>Nom complet</b></small>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_email']/small" position="replace">
+            <small>Adresse e-mail</small>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_address']/small" position="replace">
+            <small><b>Adresse</b></small>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_address2']/small" position="replace">
+            <small>Complément d’adresse</small>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_zip']/small" position="replace">
+            <small><b>Code postal</b></small>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_city']/small" position="replace">
+            <small><b>Ville</b></small>
+        </xpath>
+        <xpath expr="//label[@for='o_payment_demo_shipping_country']/small" position="replace">
+            <small><b>Pays</b></small>
+        </xpath>
+        <xpath expr="//input[@id='o_payment_demo_shipping_address']" position="attributes">
+            <attribute name="t-att-value">customer.street</attribute>
+        </xpath>
+        <xpath expr="//input[@id='o_payment_demo_shipping_address2']" position="attributes">
+            <attribute name="t-att-value">customer.street2</attribute>
+        </xpath>
+        <xpath expr="//input[@id='o_payment_demo_shipping_zip']" position="attributes">
+            <attribute name="t-att-value">customer.zip</attribute>
+        </xpath>
+        <xpath expr="//input[@id='o_payment_demo_shipping_city']" position="attributes">
+            <attribute name="t-att-value">customer.city</attribute>
+        </xpath>
+        <xpath expr="//option" position="attributes">
+            <attribute name="t-att-value">customer.country_id.code or 'TN'</attribute>
+            <attribute name="t-out">customer.country_id.name or 'Tunisie'</attribute>
+        </xpath>
+    </template>
+
+    <template id="sotufab_single_cart_payment_button" inherit_id="website_sale.navigation_buttons">
+        <xpath expr="//a[@name='website_sale_main_button']" position="attributes">
+            <attribute name="t-if">xmlid != 'website_sale.cart'</attribute>
+        </xpath>
+        <xpath expr="//div[@t-if='not hide_payment_button']" position="attributes">
+            <attribute name="t-if">not hide_payment_button and xmlid != 'website_sale.cart'</attribute>
+        </xpath>
+    </template>
+
+    <template id="sotufab_loyalty_copy_fr" inherit_id="website_sale_loyalty.modify_code_form">
+        <xpath expr="//form[@name='claim_reward']//div[hasclass('d-flex', 'flex-row')]" position="attributes">
+            <attribute name="class" add="sotufab-cart-loyalty-reward" separator=" "/>
+        </xpath>
+        <xpath expr="//t[@t-else='']/strong[@t-esc='reward.description']" position="replace">
+            <strong t-if="reward.program_id.program_type == 'loyalty'">Points fidélité disponibles :</strong>
+            <strong t-else="" t-esc="reward.description"/>
+        </xpath>
+        <xpath expr="//a[@class='btn btn-primary a-submit']/t[@t-else='']" position="replace">
+            <t t-if="reward.program_id.program_type == 'loyalty'">Appliquer les points</t>
+            <t t-else="">Obtenir</t>
         </xpath>
     </template>
 </odoo>

@@ -41,9 +41,32 @@
     <menuitem id="menu_envoi_newsletters" name="Analyse IA &amp; CLV Clients" parent="menu_rapports_analyses" action="action_customer_behavior_dashboard" sequence="5" groups="base.group_system"/>
     <menuitem id="menu_rapports_recommandations_ia" name="Recommandations IA (Apriori)" parent="menu_rapports_analyses" action="action_product_association" sequence="10" groups="base.group_system"/>
     <menuitem id="menu_utilisation_cartes" name="Statistiques d'Utilisation des Cartes" parent="menu_rapports_analyses" action="action_carte_usage_stats" sequence="20"/>
-    <menuitem id="menu_security_audit" name="Sécurité &amp; Audit"
-              parent="menu_rapports_analyses" action="action_security_audit"
-              sequence="30" groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <menuitem id="menu_security_audit" name="Sécurité &amp; Audit Zero-Trust"
+              sequence="2" groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <menuitem id="menu_security_audit_pos_logins"
+              name="Connexions Caissiers POS"
+              parent="menu_security_audit"
+              action="action_security_audit_pos_logins"
+              sequence="10"
+              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <menuitem id="menu_security_audit_ecommerce_logins"
+              name="Connexions Clients E-Commerce"
+              parent="menu_security_audit"
+              action="action_security_audit_ecommerce_logins"
+              sequence="20"
+              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <menuitem id="menu_security_audit_admin_logins"
+              name="Connexions Administration"
+              parent="menu_security_audit"
+              action="action_security_audit_admin_logins"
+              sequence="30"
+              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <menuitem id="menu_security_audit_incidents"
+              name="Incidents &amp; Alertes SHA-256"
+              parent="menu_security_audit"
+              action="action_security_audit"
+              sequence="40"
+              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
 
 </odoo>
 

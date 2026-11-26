@@ -1,9 +1,47 @@
 from odoo import http
+from odoo.addons.website_sale.controllers.main import WebsiteSale
 from odoo.http import request
+
+from odoo.addons.cartes_reduction.models.security_utils import reject_suspicious_input
+
+
+class SotufabWebsiteSale(WebsiteSale):
+
+    @http.route()
+    def shop(
+        self,
+        page=0,
+        category=None,
+        search="",
+        min_price=0.0,
+        max_price=0.0,
+        ppg=False,
+        **post,
+    ):
+        if reject_suspicious_input(
+            request.env,
+            "/shop",
+            {"search": search, "query": request.httprequest.args, **post},
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
+        return super().shop(
+            page=page,
+            category=category,
+            search=search,
+            min_price=min_price,
+            max_price=max_price,
+            ppg=ppg,
+            **post,
+        )
+
 
 class LoyaltyCartController(http.Controller):
     @http.route('/shop/apply_loyalty', type='json', auth='public', website=True)
     def apply_loyalty(self, line_id):
+        if reject_suspicious_input(
+            request.env, "/shop/apply_loyalty", {"line_id": line_id}
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         try:
             line_id = int(line_id)
         except (TypeError, ValueError):
@@ -36,6 +74,12 @@ class LoyaltyCartController(http.Controller):
 
     @http.route('/shop/cart/update_discounts', type='json', auth="public", website=True)
     def update_discounts(self, force_discount=None, rule_id=None, **kw):
+        if reject_suspicious_input(
+            request.env,
+            "/shop/cart/update_discounts",
+            {"force_discount": force_discount, "rule_id": rule_id, **kw},
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         order = request.website.sale_get_order(force_create=True)
         if not order:
             return {'success': False, 'error': 'Panier introuvable.'}
@@ -89,6 +133,10 @@ class LoyaltyCartController(http.Controller):
 
     @http.route('/shop/cart/update_amounts', type='json', auth="public", website=True)
     def update_amounts(self):
+        if reject_suspicious_input(
+            request.env, "/shop/cart/update_amounts", request.params
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         order = request.website.sale_get_order()
         if not order:
             return {'success': False}
@@ -112,6 +160,12 @@ class LoyaltyCartController(http.Controller):
 
     @http.route('/shop/check_product_suggestions', type='json', auth='public', website=True)
     def check_product_suggestions(self, product_ids, **kw):
+        if reject_suspicious_input(
+            request.env,
+            "/shop/check_product_suggestions",
+            {"product_ids": product_ids, **kw},
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         order = request.website.sale_get_order()
         if not order:
             return {'success': False, 'suggestions': []}
@@ -162,6 +216,12 @@ class LoyaltyCartController(http.Controller):
 
     @http.route('/shop/apply_product_suggestion', type='json', auth='public', website=True)
     def apply_product_suggestion(self, rule_id, **kw):
+        if reject_suspicious_input(
+            request.env,
+            "/shop/apply_product_suggestion",
+            {"rule_id": rule_id, **kw},
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         try:
             rule_id = int(rule_id)
         except (TypeError, ValueError):

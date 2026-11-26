@@ -7,6 +7,7 @@ from .security_utils import (
     encrypt_cin,
     log_security_event,
     mask_cin,
+    reject_suspicious_input,
 )
 
 
@@ -60,6 +61,12 @@ class CartesCinSecurityMixin(models.AbstractModel):
     def _inverse_cin(self):
         for record in self:
             raw_cin = (record.cin or "").strip()
+            if reject_suspicious_input(
+                self.env,
+                f"{self._name}.cin",
+                {"cin": raw_cin},
+            ):
+                raise ValidationError("L’entrée CIN a été rejetée.")
             if raw_cin:
                 digest = cin_blind_index(raw_cin)
                 duplicate = record.sudo().search_count([

@@ -28,7 +28,11 @@ from .security_utils import (
     hash_pin,
     log_security_event,
     mask_cin,
+    reject_suspicious_input,
+    read_ml_model_manifest,
+    sha256_file,
     verify_pin,
+    write_ml_model_manifest,
 )
 
 _logger = logging.getLogger(__name__)
@@ -87,6 +91,9 @@ class ResPartner(models.Model):
     )
     pos_otp_digest = fields.Char(copy=False, readonly=True, groups="base.group_system")
     pos_otp_qr_digest = fields.Char(copy=False, readonly=True, groups="base.group_system")
+    pos_otp_consumed_digest = fields.Char(
+        copy=False, readonly=True, groups="base.group_system"
+    )
     pos_otp_nonce_digest = fields.Char(copy=False, readonly=True, groups="base.group_system")
     pos_otp_expires_at = fields.Datetime(copy=False, readonly=True, groups="base.group_system")
     pos_otp_order_uid = fields.Char(copy=False, readonly=True, groups="base.group_system")
@@ -479,7 +486,7 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
         except psycopg2.errors.LockNotAvailable:
             log_security_event(
                 self.env,
-                "pos_otp_failed",
+                "double_spend_blocked",
                 partner_id=self.id,
                 details="security row is locked by a concurrent operation",
             )
@@ -663,6 +670,12 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError("Seuls les utilisateurs du Point de Vente peuvent vérifier un code.")
         self.ensure_one()
+        if reject_suspicious_input(
+            self.env,
+            "/web/dataset/call_kw/res.partner/verify_pos_otp_or_qr",
+            {"code_or_qr": code_or_qr, "order_uid": order_uid, "card_id": card_id},
+        ):
+            return {"success": False, "message": "Entrée suspecte rejetée."}
         partner = self.commercial_partner_id.sudo()
         if not partner._try_lock_security_row():
             return {
@@ -671,19 +684,47 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
             }
         partner.invalidate_recordset([
             "pos_otp_digest", "pos_otp_qr_digest", "pos_otp_nonce_digest",
-            "pos_otp_expires_at", "pos_otp_attempts", "pos_otp_locked_until",
+            "pos_otp_consumed_digest", "pos_otp_expires_at",
+            "pos_otp_attempts", "pos_otp_locked_until",
             "pos_otp_order_uid", "pos_otp_card_id",
         ])
         now = fields.Datetime.now()
 
         if partner.pos_otp_locked_until and partner.pos_otp_locked_until > now:
             return {"success": False, "message": "Vérification temporairement verrouillée."}
-        if not partner.pos_otp_expires_at or partner.pos_otp_expires_at <= now:
+        candidate = str(code_or_qr or "").strip()
+        candidate_consumed_digest = partner._pos_otp_digest(candidate, "consumed")
+        if not partner.pos_otp_expires_at:
+            if (
+                partner.pos_otp_consumed_digest
+                and hmac.compare_digest(
+                    partner.pos_otp_consumed_digest,
+                    candidate_consumed_digest,
+                )
+            ):
+                partner._record_security_failure(
+                    "replay_blocked",
+                    "Consumed POS OTP/QR replay attempt",
+                )
+            else:
+                log_security_event(
+                    self.env,
+                    "otp_expired",
+                    partner_id=partner.id,
+                    details="POS OTP is not active",
+                )
+            return {"success": False, "message": "Le code est expiré. Demandez-en un nouveau."}
+        if partner.pos_otp_expires_at <= now:
+            log_security_event(
+                self.env,
+                "otp_expired",
+                partner_id=partner.id,
+                details="POS OTP expired",
+            )
             return {"success": False, "message": "Le code est expiré. Demandez-en un nouveau."}
         if partner.pos_otp_attempts >= 3:
             return {"success": False, "message": "Trop de tentatives. Demandez un nouveau code plus tard."}
 
-        candidate = str(code_or_qr or "").strip()
         is_qr = candidate.startswith("CR1.")
         expected = partner.pos_otp_qr_digest if is_qr else partner.pos_otp_digest
         actual = partner._pos_otp_digest(candidate, "qr" if is_qr else "otp")
@@ -698,12 +739,20 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                     hashlib.sha256,
                 ).hexdigest()
                 expected_nonce_digest = partner._pos_otp_digest(nonce, "nonce")
+                signature_valid = hmac.compare_digest(signature, expected_signature)
+                if not signature_valid:
+                    log_security_event(
+                        self.env,
+                        "hmac_invalid",
+                        partner_id=partner.id,
+                        details="POS QR signature mismatch",
+                    )
                 matches = (
                     matches
                     and version == "CR1"
                     and int(partner_id) == partner.id
                     and int(expiry) >= calendar.timegm(now.timetuple())
-                    and hmac.compare_digest(signature, expected_signature)
+                    and signature_valid
                     and hmac.compare_digest(
                         partner.pos_otp_nonce_digest or ("0" * 64),
                         expected_nonce_digest,
@@ -731,13 +780,26 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
             matches = False
 
         if not matches:
-            partner._record_security_failure(
-                "pos_otp_failed",
-                "OTP, QR, card, or order binding did not match",
-            )
+            if (
+                partner.pos_otp_consumed_digest
+                and hmac.compare_digest(
+                    partner.pos_otp_consumed_digest,
+                    candidate_consumed_digest,
+                )
+            ):
+                partner._record_security_failure(
+                    "replay_blocked",
+                    "Consumed POS OTP/QR replay attempt",
+                )
+            else:
+                partner._record_security_failure(
+                    "pos_otp_failed",
+                    "OTP, QR, card, or order binding did not match",
+                )
             return {"success": False, "message": "Code incorrect."}
 
         partner.with_context(skip_card_eval=True).write({
+            "pos_otp_consumed_digest": candidate_consumed_digest,
             "pos_otp_digest": False,
             "pos_otp_qr_digest": False,
             "pos_otp_nonce_digest": partner._pos_otp_digest(
@@ -1517,16 +1579,35 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                         details="invalid trusted ML checksum",
                     )
                     return None
-                digest = hashlib.sha256()
-                with open(model_path, "rb") as artifact:
-                    for chunk in iter(lambda: artifact.read(1024 * 1024), b""):
-                        digest.update(chunk)
-                if not hmac.compare_digest(digest.hexdigest(), expected):
+                digest = sha256_file(model_path)
+                if not hmac.compare_digest(digest, expected):
                     log_security_event(
                         self.env,
                         "ml_integrity_failure",
                         partner_id=self[:1].id,
                         details="ML artifact SHA-256 mismatch",
+                    )
+                    return None
+
+                try:
+                    manifest_digest = read_ml_model_manifest(model_path)
+                except FileNotFoundError:
+                    write_ml_model_manifest(
+                        model_path,
+                        digest,
+                    )
+                    manifest_digest = read_ml_model_manifest(model_path)
+                if (
+                    len(manifest_digest) != 64
+                    or any(ch not in "0123456789abcdef" for ch in manifest_digest)
+                    or not hmac.compare_digest(manifest_digest, digest)
+                    or not hmac.compare_digest(manifest_digest, expected)
+                ):
+                    log_security_event(
+                        self.env,
+                        "ml_integrity_failure",
+                        partner_id=self[:1].id,
+                        details="ML artifact manifest mismatch",
                     )
                     return None
                 return joblib.load(model_path)

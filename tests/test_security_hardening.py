@@ -9,10 +9,13 @@ from odoo.modules.registry import Registry
 from odoo.tests import TransactionCase
 
 from odoo.addons.cartes_reduction.models.security_utils import (
+    find_injection_signature,
     get_fernet,
     get_hmac_secret,
+    reject_suspicious_input,
     verify_pin,
 )
+from odoo.addons.cartes_reduction.controllers.main import LoyaltyController
 
 
 class TestSecurityHardening(TransactionCase):
@@ -169,7 +172,7 @@ class TestSecurityHardening(TransactionCase):
             self.assertFalse(partner._try_lock_security_row())
 
         event = self.env["cartes.reduction.security.audit"].search([
-            ("event_type", "=", "pos_otp_failed"),
+            ("event_type", "=", "double_spend_blocked"),
             ("partner_id", "=", locked_partner_id),
             ("details", "=", "security row is locked by a concurrent operation"),
         ], limit=1)
@@ -202,6 +205,7 @@ class TestSecurityHardening(TransactionCase):
         with tempfile.NamedTemporaryFile(delete=False) as artifact:
             artifact.write(b"tampered-model-artifact")
             model_path = artifact.name
+        manifest_path = f"{model_path}.sha256"
         try:
             wrong_checksum = "0" * 64
             with (
@@ -227,5 +231,101 @@ class TestSecurityHardening(TransactionCase):
                 patch("odoo.addons.cartes_reduction.models.res_partner.os.path.join", return_value=model_path),
             ):
                 self.assertIs(partner._get_ml_model(), sentinel)
+            with open(manifest_path, "r", encoding="ascii") as manifest:
+                self.assertEqual(manifest.read().strip(), correct_checksum)
+
+            with open(manifest_path, "w", encoding="ascii") as manifest:
+                manifest.write(wrong_checksum)
+            with (
+                patch.dict(os.environ, {"CARTES_ML_MODEL_SHA256": correct_checksum}),
+                patch("odoo.addons.cartes_reduction.models.res_partner.joblib.load") as load,
+                patch("odoo.addons.cartes_reduction.models.res_partner.os.path.exists", return_value=True),
+                patch("odoo.addons.cartes_reduction.models.res_partner.os.path.join", return_value=model_path),
+            ):
+                self.assertFalse(partner._get_ml_model())
+                load.assert_not_called()
         finally:
-            os.unlink(model_path)
+            for path in (model_path, manifest_path):
+                if os.path.exists(path):
+                    os.unlink(path)
+
+    def test_injection_patterns_are_rejected_without_storing_input(self):
+        self.assertEqual(find_injection_signature("%3Cscript%3E"), "xss_script")
+        self.assertEqual(find_injection_signature("UNION SELECT"), "sqli_union")
+        self.assertEqual(find_injection_signature("' OR 1=1"), "sqli_boolean")
+        self.assertFalse(find_injection_signature("ordinary product search"))
+
+        rejected = reject_suspicious_input(
+            self.env,
+            "/shop/check_product_suggestions",
+            {"q": "<script>alert('private')</script>"},
+        )
+        self.assertTrue(rejected)
+        event = self.env["cartes.reduction.security.audit"].search([
+            ("event_type", "=", "injection_blocked"),
+        ], limit=1, order="id desc")
+        self.assertTrue(event)
+        self.assertIn("signature=xss_script", event.details)
+        self.assertNotIn("private", event.details)
+
+    def test_cross_client_card_data_request_is_audited(self):
+        portal_user = self.env["res.users"].with_context(
+            skip_card_eval=True
+        ).create({
+            "name": "Security test portal user",
+            "login": "security-test-portal",
+            "email": "security-test-portal@example.com",
+            "groups_id": [(6, 0, self.env.ref("base.group_portal").ids)],
+        })
+        request_env = self.env["res.partner"].with_user(portal_user).env
+
+        with patch(
+            "odoo.addons.cartes_reduction.controllers.main.request",
+            SimpleNamespace(env=request_env),
+        ):
+            result = LoyaltyController().get_cartes_data(self.partner.id)
+
+        self.assertEqual(result, {"success": False, "error": "Unauthorized"})
+        event = self.env["cartes.reduction.security.audit"].search([
+            ("event_type", "=", "idor_blocked"),
+            ("partner_id", "=", self.partner.id),
+            ("user_id", "=", portal_user.id),
+            ("details", "=", "route=/sale/order/get_cartes_data; scope=partner"),
+        ], limit=1)
+        self.assertTrue(event)
+
+    def test_external_audit_seal_is_chained_and_detects_modification(self):
+        from odoo.addons.cartes_reduction.models import security_audit
+
+        with tempfile.TemporaryDirectory() as directory:
+            seal_path = os.path.join(directory, "head_hash.seal")
+            with (
+                patch.object(security_audit, "_SEAL_PATH", seal_path),
+                patch.object(
+                    security_audit,
+                    "get_audit_seal_hmac_secret",
+                    return_value=b"x" * 32,
+                ),
+            ):
+                first_head = "a" * 64
+                second_head = "b" * 64
+                self.assertEqual(security_audit._initialize_external_seal(first_head), 1)
+                self.assertEqual(
+                    security_audit._append_external_seal(
+                        second_head, {first_head, second_head}
+                    ),
+                    2,
+                )
+                verified = security_audit._read_seal_chain()
+                self.assertTrue(verified["valid"])
+                self.assertEqual(verified["sequence"], 2)
+                self.assertEqual(verified["head_hash"], second_head)
+
+                with open(seal_path, "r+", encoding="utf-8") as seal_file:
+                    lines = seal_file.readlines()
+                    modified = lines[-1].replace(second_head, "c" * 64)
+                    lines[-1] = modified
+                    seal_file.seek(0)
+                    seal_file.writelines(lines)
+                    seal_file.truncate()
+                self.assertFalse(security_audit._read_seal_chain()["valid"])

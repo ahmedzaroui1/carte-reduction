@@ -1,0 +1,49 @@
+stages:
+  - security
+  - config
+
+gitleaks:
+  stage: security
+  image: zricethezav/gitleaks:v8.28.0
+  script:
+    - mkdir -p security-reports
+    - gitleaks detect --source=. --redact --report-format=json --report-path=security-reports/gitleaks-report.json
+  artifacts:
+    when: always
+    paths:
+      - security-reports/gitleaks-report.json
+
+bandit:
+  stage: security
+  image: python:3.12-slim
+  script:
+    - pip install --no-cache-dir bandit
+    - mkdir -p security-reports
+    - bandit -r controllers models -f txt -o security-reports/bandit-report.txt -ll
+  artifacts:
+    when: always
+    paths:
+      - security-reports/bandit-report.txt
+
+trivy:
+  stage: security
+  image:
+    name: aquasec/trivy:0.59.1
+    entrypoint: [""]
+  script:
+    - mkdir -p security-reports
+    - trivy fs --format cyclonedx --output security-reports/sbom-cyclonedx.json .
+    - trivy fs --scanners vuln,misconfig --severity HIGH,CRITICAL --exit-code 1 --format table --output security-reports/trivy-scan.txt .
+  artifacts:
+    when: always
+    paths:
+      - security-reports/trivy-scan.txt
+      - security-reports/sbom-cyclonedx.json
+
+nginx-config:
+  stage: config
+  image: nginx:stable-alpine
+  script:
+    - cp nginx/odoo-security.conf /etc/nginx/conf.d/default.conf
+    - printf '127.0.0.1 web\n' >> /etc/hosts
+    - nginx -t

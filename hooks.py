@@ -46,6 +46,25 @@ def configure_french_invoice_email_template(env):
         })
 
 
+def configure_sotufab_website_language(env):
+    french = env["res.lang"]._activate_lang("fr_FR")
+    if not french:
+        raise ValueError("The French (fr_FR) language is not available.")
+    websites = env["website"].sudo().search([
+        ("company_id.name", "=", "Sotufab Distribution Tunisie"),
+    ])
+    for website in websites:
+        values = {}
+        if website.default_lang_id != french:
+            values["default_lang_id"] = french.id
+        if website.language_ids != french:
+            values["language_ids"] = [(6, 0, french.ids)]
+        if website.show_line_subtotals_tax_selection != "tax_included":
+            values["show_line_subtotals_tax_selection"] = "tax_included"
+        if values:
+            website.write(values)
+
+
 def configure_pass1_data(env):
     company_id = env.company.id
     env = api.Environment(
@@ -610,3 +629,4 @@ def post_init_hook(env):
     configure_pass1_data(env)
     configure_tunisian_ttc_taxes(env)
     configure_french_invoice_email_template(env)
+    configure_sotufab_website_language(env)

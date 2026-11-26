@@ -1,11 +1,20 @@
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.cartes_reduction.models.security_utils import (
+    log_security_event,
+    reject_suspicious_input,
+)
+
 
 class LoyaltyController(http.Controller):
 
     @http.route('/sale/order/get_cartes_data', type='json', auth='user')
     def get_cartes_data(self, partner_id):
+        if reject_suspicious_input(
+            request.env, "/sale/order/get_cartes_data", {"partner_id": partner_id}
+        ):
+            return request.make_response("Requête suspecte rejetée.", status=400)
         try:
             partner_id = int(partner_id)
         except (TypeError, ValueError):
@@ -17,6 +26,12 @@ class LoyaltyController(http.Controller):
         )
         is_pos_cashier = user.has_group('point_of_sale.group_pos_user')
         if not (is_privileged or is_pos_cashier or partner_id == user.partner_id.id):
+            log_security_event(
+                request.env,
+                "idor_blocked",
+                partner_id=partner_id,
+                details="route=/sale/order/get_cartes_data; scope=partner",
+            )
             return {'success': False, 'error': 'Unauthorized'}
 
         sale_order_model = request.env['sale.order']
@@ -24,6 +39,12 @@ class LoyaltyController(http.Controller):
         if not partner.exists():
             return {'success': False, 'error': 'Not found'}
         if not is_privileged and partner.company_id and user.company_id not in partner.company_id:
+            log_security_event(
+                request.env,
+                "idor_blocked",
+                partner_id=partner.id,
+                details="route=/sale/order/get_cartes_data; scope=company",
+            )
             return {'success': False, 'error': 'Unauthorized'}
         result = sale_order_model._get_ui_cartes_data(partner_id)
         result.update({'id': partner.id, 'name': partner.name})
