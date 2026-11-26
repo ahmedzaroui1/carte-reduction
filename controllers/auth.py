@@ -1,37 +1,38 @@
 from odoo import http
 from odoo.addons.auth_signup.controllers.main import AuthSignupHome
 from odoo.addons.website.controllers.main import Website as WebsiteController
-from odoo.addons.web.controllers.session import Session
+from odoo.addons.web.controllers.session import Session as WebSession
+from odoo.exceptions import AccessDenied
 from odoo.http import request
 
-from odoo.addons.cartes_reduction.models.security_utils import (
-    log_security_event,
-    reject_suspicious_input,
-)
+from ..models.auth_audit import log_auth_event
 
 
-def _actor_scope(user):
-    if not user:
-        return "unknown"
-    if user.has_group("base.group_system") or user.has_group(
-        "cartes_reduction.cartes_manager_group"
-    ):
-        return "administrator"
-    if user.has_group("point_of_sale.group_pos_user"):
-        return "pos_cashier"
-    if user.has_group("base.group_portal"):
-        return "ecommerce_client"
-    return "unknown"
-
-
-def _log_auth_event(event_type, user=False, scope="unknown", source="internal"):
-    log_security_event(
-        request.env,
+def _audit_auth_event(event_type, user=None, login=None, actor_uid=None, details=None):
+    if user:
+        login = login or user.login
+        actor_uid = user.id
+    return log_auth_event(
+        request.db,
         event_type,
-        user_id=user.id if user else False,
-        actor_scope=_actor_scope(user) if user else scope,
-        details=f"source={source}",
+        login=login,
+        actor_uid=actor_uid,
+        details=details,
+        user_agent_env=request.httprequest.environ,
     )
+
+
+def _audit_current_logout():
+    uid = request.session.uid
+    if not uid:
+        return
+    user = request.env["res.users"].sudo().browse(uid).exists()
+    if user:
+        _audit_auth_event(
+            "logout",
+            user=user,
+            details="Déconnexion via %s" % request.httprequest.path,
+        )
 
 
 class SotufabAuthSignupHome(AuthSignupHome):
@@ -40,6 +41,15 @@ class SotufabAuthSignupHome(AuthSignupHome):
         return request.httprequest.headers.get("X-Sotufab-Portal")
 
     def _reject_portal_login(self):
+        uid = request.session.uid
+        if uid:
+            user = request.env["res.users"].sudo().browse(uid).exists()
+            if user:
+                _audit_auth_event(
+                    "login_failed",
+                    user=user,
+                    details="Accès refusé sur ce portail",
+                )
         request.session.logout(keep_db=True)
         return request.make_response(
             "Accès refusé. Utilisez le portail correspondant à votre compte.",
@@ -96,49 +106,109 @@ class SotufabAuthSignupHome(AuthSignupHome):
             },
         )
 
-    def _audit_auth_event(self, event_type, user=False, scope=False):
-        _log_auth_event(
-            event_type,
-            user=user,
-            scope=scope or "unknown",
-            source="public" if self._request_portal_mode() == "public" else "internal",
+    def _render_staff_login(self, error=None, login=""):
+        return request.render(
+            "cartes_reduction.internal_staff_login",
+            {
+                "error": error,
+                "login": login,
+            },
         )
+
+    def _route_staff_user(self, user):
+        if user.has_group("base.group_portal"):
+            _audit_auth_event(
+                "login_failed",
+                user=user,
+                details="Compte réservé à la boutique en ligne",
+            )
+            request.session.logout(keep_db=True)
+            return self._render_staff_login(
+                "Accès refusé : compte réservé à la boutique en ligne"
+            )
+
+        is_manager = user.has_group(
+            "base.group_system"
+        ) or user.has_group("cartes_reduction.cartes_manager_group")
+        if user.has_group("point_of_sale.group_pos_user") and not is_manager:
+            return request.redirect("/pos/ui", 303)
+        if user.has_group("base.group_user"):
+            return request.redirect("/web", 303)
+
+        _audit_auth_event(
+            "login_failed",
+            user=user,
+            details="Compte non autorisé sur le portail interne",
+        )
+        request.session.logout(keep_db=True)
+        return self._render_staff_login("Accès refusé : compte non autorisé")
+
+    @http.route(
+        "/staff/login",
+        type="http",
+        auth="none",
+        methods=["GET", "POST"],
+        csrf=True,
+        website=False,
+        sitemap=False,
+    )
+    def staff_login(self, **kwargs):
+        if request.session.uid:
+            user = request.env["res.users"].sudo().browse(request.session.uid)
+            if user.exists():
+                return self._route_staff_user(user)
+            request.session.logout(keep_db=True)
+
+        if request.httprequest.method == "POST":
+            login = (request.params.get("login") or "").strip()
+            password = request.params.get("password") or ""
+            if not request.db:
+                return self._render_staff_login("Base de données indisponible", login)
+
+            try:
+                uid = request.session.authenticate(request.db, login, password)
+            except AccessDenied:
+                return self._render_staff_login("Identifiants invalides", login)
+
+            if uid:
+                if request.session.uid != uid:
+                    _audit_auth_event(
+                        "login_failed",
+                        login=login,
+                        actor_uid=uid,
+                        details="Validation multifacteur non terminée",
+                    )
+                    request.session.logout(keep_db=True)
+                    return self._render_staff_login(
+                        "Une validation multifacteur supplémentaire est requise"
+                    )
+                user = request.env["res.users"].sudo().browse(uid)
+                if user.exists():
+                    response = self._route_staff_user(user)
+                    if request.session.uid == uid:
+                        _audit_auth_event("login", user=user)
+                    return response
+                request.session.logout(keep_db=True)
+
+            _audit_auth_event(
+                "login_failed",
+                login=login,
+                details="Authentification non aboutie",
+            )
+            return self._render_staff_login("Identifiants invalides", login)
+
+        return self._render_staff_login()
 
     @http.route()
     def web_login(self, *args, **kwargs):
-        if (
-            request.db
-            and request.httprequest.method == "POST"
-            and reject_suspicious_input(
-                request.env,
-                "/web/login",
-                {"login": request.params.get("login")},
-            )
-        ):
-            return request.make_response(
-                "Requête suspecte rejetée.",
-                headers=[("Content-Type", "text/plain; charset=utf-8")],
-                status=400,
-            )
+        previous_uid = request.session.uid
         response = super().web_login(*args, **kwargs)
-        if request.db and request.httprequest.method == "POST":
-            if request.session.uid:
-                user = request.env["res.users"].sudo().browse(request.session.uid).exists()
-                self._audit_auth_event("login", user=user)
-            else:
-                login = request.params.get("login")
-                user = (
-                    request.env["res.users"].sudo().search([("login", "=", login)], limit=1)
-                    if login
-                    else False
-                )
-                scope = (
-                    "ecommerce_client"
-                    if self._request_portal_mode() == "public"
-                    else "unknown"
-                )
-                self._audit_auth_event("login_failed", user=user, scope=scope)
         routed_response = self._route_authenticated_user()
+        uid = request.session.uid
+        if uid and uid != previous_uid:
+            user = request.env["res.users"].sudo().browse(uid).exists()
+            if user:
+                _audit_auth_event("login", user=user)
         if routed_response is not None:
             return routed_response
 
@@ -157,17 +227,6 @@ class SotufabAuthSignupHome(AuthSignupHome):
         return super().login_successful_external_user(**kwargs)
 
 
-class SotufabSession(Session):
-
-    @http.route()
-    def logout(self, redirect="/web"):
-        uid = request.session.uid
-        user = request.env["res.users"].sudo().browse(uid).exists() if uid else False
-        if uid:
-            _log_auth_event("logout", user=user)
-        return super().logout(redirect=redirect)
-
-
 class SotufabWebsiteHome(WebsiteController):
 
     @http.route("/", auth="public", website=True, sitemap=False)
@@ -175,3 +234,26 @@ class SotufabWebsiteHome(WebsiteController):
         if request.website.company_id.name == "Sotufab Distribution Tunisie":
             return request.redirect("/shop", code=302)
         return super().index(**kwargs)
+
+
+class SotufabSessionAudit(WebSession):
+
+    @http.route()
+    def authenticate(self, db, login, password, base_location=None):
+        result = super().authenticate(db, login, password, base_location)
+        uid = request.session.uid
+        if uid and result.get("uid") == uid:
+            user = request.env["res.users"].sudo().browse(uid).exists()
+            if user:
+                _audit_auth_event("login", user=user)
+        return result
+
+    @http.route()
+    def destroy(self):
+        _audit_current_logout()
+        return super().destroy()
+
+    @http.route()
+    def logout(self, redirect="/web"):
+        _audit_current_logout()
+        return super().logout(redirect)

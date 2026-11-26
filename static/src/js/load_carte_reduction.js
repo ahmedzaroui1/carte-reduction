@@ -335,6 +335,7 @@ patch(PosStore.prototype, {
             silver: 2,
             gold: 3,
             premium: 4,
+            platinum: 5,
         };
         return this.getCartesByClient(partnerId)
             .filter(card => Object.hasOwn(tierRank, card.carte_type))

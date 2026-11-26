@@ -7,6 +7,10 @@ from . import carte_condition
 from . import cartes_reduction_info
 from . import cin_security
 from . import security_audit
+from . import auth_audit
+from . import audit_seal_manager
+from . import admin_partner
+from . import pos_session_audit
 from . import cartes_client
 from . import cartes_attribution
 from . import loyalty_card
@@ -37,3 +41,5 @@ from . import data_ml
 from . import ProductAssociation
 from . import ProductSuggestionWizard
 from . import ir_ui_menu
+from . import ir_http
+from . import security_input_guard

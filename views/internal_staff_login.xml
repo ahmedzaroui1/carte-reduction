@@ -1,54 +1,110 @@
 <odoo>
     <template id="internal_staff_login" name="Sotufab Internal Staff Login">
-        <t t-set="no_header" t-value="True"/>
-        <t t-set="no_footer" t-value="True"/>
-        <t t-call="web.login_layout">
-            <t t-set="disable_database_manager" t-value="True"/>
-            <t t-set="disable_footer" t-value="True"/>
-            <t t-set="login_card_classes" t-value="'sotufab-internal-login'"/>
-
-            <div class="text-center mb-4">
-                <h1 class="h5 mb-2">Sotufab — Portail Interne Staff &amp; Caisse</h1>
-                <p class="text-muted mb-0">Accès réservé au personnel autorisé</p>
-            </div>
-
-            <form class="oe_login_form" role="form" action="/web/login" method="post">
-                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-
-                <div class="mb-3">
-                    <label for="login" class="form-label">Adresse e-mail</label>
-                    <input type="text"
-                           name="login"
-                           id="login"
-                           t-att-value="login"
-                           class="form-control"
-                           required="required"
-                           autocomplete="username"
-                           autocapitalize="off"
-                           autofocus="autofocus"/>
-                </div>
-
-                <div class="mb-3">
-                    <label for="password" class="form-label">Mot de passe</label>
-                    <input type="password"
-                           name="password"
-                           id="password"
-                           class="form-control"
-                           required="required"
-                           autocomplete="current-password"
-                           maxlength="4096"/>
-                </div>
-
-                <p class="alert alert-danger" t-if="error" role="alert">
-                    <t t-esc="error"/>
-                </p>
-                <p class="alert alert-success" t-if="message" role="status">
-                    <t t-esc="message"/>
-                </p>
-
-                <input type="hidden" name="redirect" value="/web"/>
-                <button type="submit" class="btn btn-primary w-100">Se connecter</button>
-            </form>
-        </t>
+        <html lang="fr">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <title>Sotufab — Portail Interne Staff &amp; Caisse</title>
+                <style>
+                    :root { color-scheme: light; font-family: Inter, "Segoe UI", sans-serif; }
+                    * { box-sizing: border-box; }
+                    body {
+                        align-items: center;
+                        background: #0F172A;
+                        color: #172033;
+                        display: flex;
+                        justify-content: center;
+                        margin: 0;
+                        min-height: 100vh;
+                        padding: 24px;
+                    }
+                    .login-card {
+                        background: #fff;
+                        border-radius: 18px;
+                        box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
+                        max-width: 440px;
+                        padding: 40px;
+                        width: 100%;
+                    }
+                    .brand-mark {
+                        align-items: center;
+                        background: #F68B1E;
+                        border-radius: 12px;
+                        color: #fff;
+                        display: flex;
+                        font-size: 20px;
+                        font-weight: 800;
+                        height: 48px;
+                        justify-content: center;
+                        margin: 0 auto 22px;
+                        width: 48px;
+                    }
+                    h1 { font-size: 23px; line-height: 1.35; margin: 0; text-align: center; }
+                    .subtitle { color: #64748b; margin: 10px 0 28px; text-align: center; }
+                    label { display: block; font-size: 14px; font-weight: 650; margin: 17px 0 7px; }
+                    input {
+                        border: 1px solid #cbd5e1;
+                        border-radius: 9px;
+                        font: inherit;
+                        padding: 12px 13px;
+                        width: 100%;
+                    }
+                    input:focus { border-color: #F68B1E; outline: 3px solid #F68B1E33; }
+                    button {
+                        background: #F68B1E;
+                        border: 0;
+                        border-radius: 9px;
+                        color: #fff;
+                        cursor: pointer;
+                        font: inherit;
+                        font-weight: 700;
+                        margin-top: 24px;
+                        padding: 13px;
+                        width: 100%;
+                    }
+                    button:hover { background: #e8790b; }
+                    .error {
+                        background: #fff1f2;
+                        border: 1px solid #fecdd3;
+                        border-radius: 8px;
+                        color: #9f1239;
+                        font-size: 14px;
+                        margin-top: 18px;
+                        padding: 11px 12px;
+                    }
+                    .access-note { color: #94a3b8; font-size: 12px; margin: 22px 0 0; text-align: center; }
+                    @media (max-width: 480px) { .login-card { padding: 30px 24px; } }
+                </style>
+            </head>
+            <body>
+                <main class="login-card">
+                    <div class="brand-mark" aria-hidden="true">S</div>
+                    <h1>Sotufab — Portail Interne Staff &amp; Caisse</h1>
+                    <p class="subtitle">Accès réservé au personnel autorisé</p>
+                    <form action="/staff/login" method="post">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <label for="login">Adresse e-mail</label>
+                        <input id="login"
+                               name="login"
+                               type="text"
+                               t-att-value="login"
+                               autocomplete="username"
+                               autocapitalize="off"
+                               required="required"
+                               autofocus="autofocus"/>
+                        <label for="password">Mot de passe</label>
+                        <input id="password"
+                               name="password"
+                               type="password"
+                               autocomplete="current-password"
+                               maxlength="4096"
+                               required="required"/>
+                        <p class="error" t-if="error" role="alert"><t t-esc="error"/></p>
+                        <button type="submit">Se connecter</button>
+                    </form>
+                    <p class="access-note">Connexion sécurisée — accès interne uniquement</p>
+                </main>
+            </body>
+        </html>
     </template>
 </odoo>

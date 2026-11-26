@@ -3,31 +3,46 @@
     <field name="name">cartes.reduction.form</field>
     <field name="model">cartes.reduction</field>
     <field name="arch" type="xml">
-        <form string="Carte de Réduction">
+        <form string="Carte de Réduction" class="cr_card_admin_form">
             <sheet>
-                <group>
-                    <!-- Champ Nom de la carte -->
-                    <field name="name" string="Nom de la Carte" required="True"/>
-
-                    <!-- Type de Carte -->
-                    <field name="carte_type" string="Type de Carte"/>
-
-                    <!-- Remise de bienvenue -->
-                    <field name="discount" string="Remise (%)"/>
-
-                    <field name="date_debut"/>
-                    <field name="date_expiration"/>
-                    <field name="is_vip"/>
-
-                    <field name="image_1920" widget="image" class="oe_avatar"/>
-
-
-                    <field name="nombre_utilisateurs_max" string="Nombre d'Utilisateurs Permis" />
-                    <field name="conditions_ids" widget="many2many_tags" options="{'no_create': false}"  string="Conditions d'Obtention" />
-                    <field name="loyalty_program_id" options="{'no_create_edit': False}" context="{'default_active': True}" />
-
-                    <field name="active" string="Active"/>
-                </group>
+                <div class="oe_title">
+                    <h1><field name="name" placeholder="Nom de la carte"/></h1>
+                </div>
+                <div class="cr_admin_cards">
+                    <div class="cr_admin_card">
+                        <h3>Identité et avantage</h3>
+                        <group col="2">
+                            <field name="carte_type" string="Palier" widget="badge"
+                                   decoration-success="carte_type in ['gold', 'platinum']"
+                                   decoration-info="carte_type == 'silver'"
+                                   decoration-warning="carte_type == 'bronze'"/>
+                            <field name="discount" string="Remise (%)"/>
+                            <field name="state" string="Statut" widget="statusbar"/>
+                            <field name="active" string="Active" widget="boolean_toggle"/>
+                            <field name="is_vip" string="Carte VIP"/>
+                            <field name="date_debut" string="Date de début"/>
+                            <field name="date_expiration" string="Date d'expiration"/>
+                        </group>
+                    </div>
+                    <div class="cr_admin_card">
+                        <h3>Conditions et capacité</h3>
+                        <field name="image_1920" string="Visuel de la carte"
+                               widget="image" class="cr_card_image"
+                               options="{'size': [192, 192]}"/>
+                        <group>
+                            <field name="nombre_utilisateurs" string="Clients attribués"
+                                   readonly="1"/>
+                            <field name="nombre_utilisateurs_max" string="Capacité maximale"/>
+                            <field name="conditions_ids" widget="many2many_tags"
+                                   options="{'no_create': false}"
+                                   string="Conditions d'obtention"/>
+                            <field name="loyalty_program_id" widget="many2many_tags"
+                                   options="{'no_create_edit': False}"
+                                   context="{'default_active': True}"
+                                   string="Programme de fidélité"/>
+                        </group>
+                    </div>
+                </div>
             </sheet>
 
 
@@ -87,7 +102,7 @@
     <field name="name">cartes.reduction.kanban</field>
     <field name="model">cartes.reduction</field>
     <field name="arch" type="xml">
-        <kanban class="o_kanban_mobile">
+        <kanban class="o_kanban_mobile cr_cards_kanban">
             <field name="name"/>
             <field name="carte_type"/>
             <field name="discount"/>
@@ -96,12 +111,12 @@
             <field name="is_vip"/>
             <templates>
                 <t t-name="kanban-box">
-                    <div class="oe_kanban_global_click o_kanban_record">
-                        <div class="o_kanban_image">
+                    <div class="oe_kanban_global_click o_kanban_record cr_card_catalog_item">
+                        <div class="o_kanban_image cr_card_catalog_image">
                             <img t-att-src="kanban_image('cartes.reduction', 'image_256', record.id.raw_value)"
                                  t-att-alt="record.name.value"/>
                         </div>
-                        <div class="o_kanban_details">
+                        <div class="o_kanban_details cr_card_catalog_details">
                             <strong><field name="name"/></strong>
                             <div><field name="carte_type"/></div>
                             <div><field name="discount"/>% de remise</div>
@@ -119,16 +134,19 @@
     <field name="name">cartes.reduction.tree</field>
     <field name="model">cartes.reduction</field>
     <field name="arch" type="xml">
-        <tree string="Cartes de Réduction">
+        <tree string="Cartes de Réduction" class="cr_cards_tree">
             <field name="name"/>  <!-- Nom de la carte -->
-            <field name="image_128" widget="image" class="img-thumbnail"/>
+            <field name="image_128" widget="image" class="img-thumbnail" optional="hide"/>
 
-            <field name="carte_type"/>  <!-- Type de carte -->
+            <field name="carte_type" string="Palier" widget="badge"
+                   decoration-success="carte_type in ['gold', 'platinum']"
+                   decoration-info="carte_type == 'silver'"
+                   decoration-warning="carte_type == 'bronze'"/>
             <field name="conditions_ids" widget="many2many_tags" options="{'no_create': True}"  string="Conditions d'Obtention" />
-            <field name="loyalty_program_id" widget="many2many_tags" options="{'no_create': True}"  string="progde fidelité" />
-            <field name="nombre_utilisateurs_max"/>  <!-- Nombre de clients -->
-            <field name="nombre_utilisateurs"/>
-            <field name="discount"/>  <!-- Points de récompense de bienvenue -->
+            <field name="loyalty_program_id" widget="many2many_tags" options="{'no_create': True}" string="Programme de fidélité"/>
+            <field name="nombre_utilisateurs_max" string="Capacité maximale"/>
+            <field name="nombre_utilisateurs" string="Clients attribués"/>
+            <field name="discount" string="Remise (%)"/>
             <field name="active"/>  <!-- Statut actif/inactif -->
 
         </tree>

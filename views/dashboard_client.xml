@@ -133,7 +133,7 @@
         <field name="name">customer.behavior.tree</field>
         <field name="model">res.partner</field>
         <field name="arch" type="xml">
-            <tree string="Analyse IA &amp; CLV Clients">
+            <tree string="Analyse IA &amp; CLV Clients" class="cr_ai_customer_tree">
                 <header>
                     <button name="action_refresh_ai_predictions"
                             string="Actualiser Prédictions IA (CLV &amp; Apriori)"

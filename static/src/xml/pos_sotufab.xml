@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="cartes_reduction.PosNavbar" t-inherit="point_of_sale.Navbar" t-inherit-mode="extension">
+        <xpath expr="//div[contains(@class, 'pos-topheader')]" position="attributes">
+            <attribute name="class" add="sotufab-pos-topheader" separator=" "/>
+        </xpath>
+        <xpath expr="//div[contains(@class, 'pos-branding')]" position="replace">
+            <div class="pos-branding sotufab-pos-branding">
+                <span class="sotufab-pos-title">Sotufab Caisse</span>
+                <span t-if="pos.get_cashier()?.role === 'cashier'" class="sotufab-pos-security-badge">
+                    SESSION CAISSIER RESTREINTE (RBAC) <span aria-hidden="true">•</span> SÉCURITÉ POS ACTIVE
+                </span>
+            </div>
+        </xpath>
+        <xpath expr="//li[contains(@class, 'backend-button')]" position="attributes">
+            <attribute name="t-if">pos.get_cashier()?.role !== 'cashier'</attribute>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosProductScreen" t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
+        <xpath expr="//div[contains(@class, 'control-buttons')]" position="attributes">
+            <attribute name="class" add="sotufab-pos-control-buttons" separator=" "/>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosProductsWidget" t-inherit="point_of_sale.ProductsWidget" t-inherit-mode="extension">
+        <xpath expr="//Input[contains(@placeholder, 'Search products...')]" position="attributes">
+            <attribute name="placeholder">'Rechercher un produit...'</attribute>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosRewardButton" t-inherit="pos_loyalty.RewardButton" t-inherit-mode="extension">
+        <xpath expr="//button" position="attributes">
+            <attribute name="t-if">pos.get_cashier()?.role !== 'cashier'</attribute>
+        </xpath>
+    </t>
+    <t t-name="cartes_reduction.PosPromoCodeButton" t-inherit="pos_loyalty.PromoCodeButton" t-inherit-mode="extension">
+        <xpath expr="//button" position="attributes">
+            <attribute name="t-if">pos.get_cashier()?.role !== 'cashier'</attribute>
+        </xpath>
+    </t>
+    <t t-name="cartes_reduction.PosCustomerNoteButton" t-inherit="point_of_sale.OrderlineCustomerNoteButton" t-inherit-mode="extension">
+        <xpath expr="//button" position="attributes">
+            <attribute name="t-if">pos.get_cashier()?.role !== 'cashier'</attribute>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosPaymentScreenTop" t-inherit="point_of_sale.PaymentScreenTop" t-inherit-mode="extension">
+        <xpath expr="//span[hasclass('back_text')]" position="replace">
+            <span class="back_text">Retour</span>
+        </xpath>
+        <xpath expr="//h2[normalize-space(.)='Payment']" position="replace">
+            <h2 class="mb-0">Encaissement</h2>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosPaymentScreenValidate" t-inherit="point_of_sale.PaymentScreenValidate" t-inherit-mode="extension">
+        <xpath expr="//span[normalize-space(.)='Validate']" position="replace">
+            <span>Valider l'encaissement</span>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosPaymentMethods" t-inherit="point_of_sale.PaymentScreenMethods" t-inherit-mode="extension">
+        <xpath expr="//h4[normalize-space(.)='Payment method']" position="replace">
+            <h4 class="title-category pt-3 pb-2 px-3 m-0 bg-view border-bottom border-2">Mode de règlement</h4>
+        </xpath>
+        <xpath expr="//img[contains(@class, 'payment-method-icon')]" position="replace">
+            <t t-if="paymentMethod.name.toLowerCase().includes('cash') || paymentMethod.name.toLowerCase().includes('esp')">
+                <i class="fa fa-money sotufab-payment-icon"/>
+            </t>
+            <t t-elif="paymentMethod.name.toLowerCase().includes('bank') || paymentMethod.name.toLowerCase().includes('card') || paymentMethod.name.toLowerCase().includes('carte')">
+                <i class="fa fa-credit-card sotufab-payment-icon"/>
+            </t>
+            <img t-else="" class="payment-method-icon" t-att-src="paymentMethodImage(paymentMethod.id)"/>
+        </xpath>
+        <xpath expr="//span[contains(@class, 'payment-name')]" position="replace">
+            <span class="payment-name">
+                <t t-if="paymentMethod.name.toLowerCase().includes('cash') || paymentMethod.name.toLowerCase().includes('esp')">Espèces</t>
+                <t t-elif="paymentMethod.name.toLowerCase().includes('bank') || paymentMethod.name.toLowerCase().includes('card') || paymentMethod.name.toLowerCase().includes('carte')">Carte Bancaire / TPE</t>
+                <t t-else=""><t t-esc="paymentMethod.name"/></t>
+            </span>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosPaymentScreenButtons" t-inherit="point_of_sale.PaymentScreenButtons" t-inherit-mode="extension">
+        <xpath expr="//button[contains(@class, 'js_invoice')]" position="replace">
+            <button class="button js_invoice btn btn-light py-3 text-start rounded-0 border-bottom"
+                t-att-class="{ 'highlight text-bg-primary': currentOrder.is_to_invoice() }"
+                t-on-click="toggleIsToInvoice">
+                <i class="fa fa-file-text-o me-2"/>Générer Facture
+            </button>
+        </xpath>
+    </t>
+
+    <t t-name="cartes_reduction.PosPaymentStatus" t-inherit="point_of_sale.PaymentScreenStatus" t-inherit-mode="extension">
+        <xpath expr="//div[contains(@class, 'message')]" position="replace">
+            <div class="message text-center">Sélectionnez un mode de règlement pour continuer.</div>
+        </xpath>
+    </t>
+    <t t-name="cartes_reduction.PosPaymentLines" t-inherit="point_of_sale.PaymentScreenPaymentLines" t-inherit-mode="extension">
+        <xpath expr="//h4[normalize-space(.)='Summary']" position="replace">
+            <h4 class="title-category pt-3 pb-2 px-3 m-0 bg-view border-bottom border-2">Récapitulatif de vente</h4>
+        </xpath>
+    </t>
+    <t t-name="cartes_reduction.PosLoyaltyLabels" t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
+        <xpath expr="//span[normalize-space(.)='Points Won']" position="replace">
+            <span class="text-muted">Points gagnés</span>
+        </xpath>
+        <xpath expr="//span[normalize-space(.)='Points Balance']" position="replace">
+            <span class="text-muted">Solde de points</span>
+        </xpath>
+        <xpath expr="//span[normalize-space(.)='Points Spent']" position="replace">
+            <span class="text-muted">Points utilisés</span>
+        </xpath>
+        <xpath expr="//span[normalize-space(.)='New Total']" position="replace">
+            <span class="text-muted">Nouveau solde</span>
+        </xpath>
+    </t>
+    <t t-name="cartes_reduction.PosRefundButton" t-inherit="point_of_sale.RefundButton" t-inherit-mode="extension">
+        <xpath expr="//button" position="replace">
+            <button class="control-button btn btn-light rounded-0 fw-bolder" t-on-click="() => this.click()">
+                <i class="fa fa-undo me-1" role="img" aria-label="Refund" title="Refund"/>
+                Remboursement
+            </button>
+        </xpath>
+    </t>
+    <t t-name="cartes_reduction.PosSaleDetailsUnits" t-inherit="point_of_sale.SaleDetailsReport" t-inherit-mode="extension">
+        <xpath expr="//t[@t-esc='line.uom']" position="replace">
+            <t t-if="line.uom === 'Units'">Unités</t>
+            <t t-else="" t-esc="line.uom"/>
+        </xpath>
+    </t>
+</templates>

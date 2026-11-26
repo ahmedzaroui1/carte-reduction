@@ -1,0 +1,56 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 17.0\n"
+"Language: fr_FR\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__cin_reveal
+msgid "CIN revealed"
+msgstr "Révélation CIN"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__pin_set
+msgid "Personal PIN changed"
+msgstr "Code PIN personnel modifié"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__pin_failed
+msgid "Personal PIN verification failed"
+msgstr "Échec de vérification du code PIN"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__pos_otp_failed
+msgid "POS OTP verification failed"
+msgstr "Échec de validation OTP POS"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__redemption
+msgid "Card redemption"
+msgstr "Validation remise carte"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__velocity_abuse
+msgid "VELOCITY_ABUSE"
+msgstr "Double-dépense bloquée"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__ml_integrity_failure
+msgid "ML artifact integrity failure"
+msgstr "Échec d'intégrité du modèle IA"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__unauthorized_access
+msgid "Unauthorized access attempt"
+msgstr "Accès refusé"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__tampered_token
+msgid "Tampered token blocked"
+msgstr "Signature altérée bloquée"
+
+#. module: cartes_reduction
+#: model:ir.model.fields.selection,name:cartes_reduction.selection__cartes_reduction_security_audit__event_type__replay_blocked
+msgid "Replay blocked"
+msgstr "Tentative de rejeu POS bloquée"

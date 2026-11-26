@@ -256,7 +256,7 @@ class TestPortalShopRedirect(HttpCase):
         self.assertTrue(response.headers["Location"].rstrip("/").endswith("/shop"))
 
     def test_marketplace_pages_remain_available_to_portal_customers(self):
-        self.authenticate(self.portal_login, "StrongPass123")
+        self.authenticate(self.portal_login, TEST_PASSWORD)
         for path in ("/shop/cart", "/my/cartes", "/my/orders"):
             with self.subTest(path=path):
                 response = self.url_open(path)

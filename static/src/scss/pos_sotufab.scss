@@ -1,0 +1,328 @@
+.pos {
+    --sotufab-navy: #0f172a;
+    --sotufab-amber: #f68b1e;
+    --sotufab-emerald: #10b981;
+    --sotufab-surface: #f3f5f8;
+
+    .sotufab-pos-topheader {
+        min-height: 64px;
+        color: #fff !important;
+        background: var(--sotufab-navy) !important;
+        border: 0 !important;
+        box-shadow: 0 3px 14px rgba(15, 23, 42, 0.18);
+    }
+
+    .sotufab-pos-branding {
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        align-items: center;
+        gap: 18px;
+        padding: 8px 18px;
+        color: #fff;
+    }
+
+    .sotufab-pos-title {
+        color: #fff;
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+    }
+
+    .sotufab-pos-security-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 11px;
+        color: #d1fae5;
+        border: 1px solid rgba(16, 185, 129, 0.45);
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.12);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.055em;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .sotufab-pos-topheader .navbar-button {
+        color: #fff !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .sotufab-pos-topheader .navbar-button:hover {
+        background: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    .sotufab-pos-control-buttons {
+        gap: 8px;
+        padding: 10px;
+        background: var(--sotufab-surface) !important;
+    }
+
+    .sotufab-pos-control-buttons .control-button {
+        min-height: 46px;
+        padding: 10px 15px !important;
+        color: #1e293b;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        font-weight: 700;
+        transition: box-shadow 140ms ease, transform 140ms ease;
+    }
+
+    .sotufab-pos-control-buttons .control-button:hover {
+        box-shadow: 0 5px 16px rgba(15, 23, 42, 0.12);
+        transform: translateY(-1px);
+    }
+
+    .product-screen {
+        background: var(--sotufab-surface) !important;
+    }
+
+    .product-screen .product-list {
+        gap: 10px;
+        padding: 12px !important;
+    }
+
+    .product-screen .product-list .product,
+    .product-screen .product-list .product-card {
+        overflow: hidden;
+        border: 1px solid #e8edf3;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 2px 7px rgba(15, 23, 42, 0.05);
+        transition: box-shadow 150ms ease, transform 150ms ease;
+    }
+
+    .product-screen .product-list .product:hover,
+    .product-screen .product-list .product-card:hover {
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.13);
+        transform: translateY(-2px);
+    }
+
+    .product-screen .product-list .product .price-tag,
+    .product-screen .product-list .product-card .price-tag {
+        color: var(--sotufab-navy);
+        font-weight: 800;
+    }
+
+    .product-screen .pay-button,
+    .product-screen .actionpad .button.pay,
+    .payment-screen .validation-button,
+    .payment-screen .validation.btn {
+        min-height: 58px;
+        color: #fff !important;
+        border: 0 !important;
+        border-radius: 10px !important;
+        background: var(--sotufab-amber) !important;
+        font-weight: 800 !important;
+        box-shadow: 0 4px 12px rgba(246, 139, 30, 0.22);
+    }
+
+    .product-screen .pay-button:hover,
+    .product-screen .actionpad .button.pay:hover,
+    .payment-screen .validation-button:hover,
+    .payment-screen .validation.btn:hover {
+        background: #e8790d !important;
+    }
+
+    .payment-screen {
+        background: var(--sotufab-surface) !important;
+    }
+
+    .payment-screen .top-content {
+        min-height: 64px;
+        background: #fff;
+    }
+
+    .payment-screen .paymentmethod {
+        min-height: 76px;
+        margin: 8px;
+        padding: 14px !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+    }
+
+    .payment-screen .paymentmethod.highlight {
+        border-color: var(--sotufab-amber) !important;
+        box-shadow: 0 0 0 2px rgba(246, 139, 30, 0.16);
+    }
+
+    .sotufab-payment-icon {
+        display: inline-flex;
+        width: 42px;
+        height: 42px;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        color: var(--sotufab-navy);
+        border-radius: 10px;
+        background: #f1f5f9;
+        font-size: 1.35rem;
+    }
+
+    .sotufab-pos-modal .modal-header {
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .sotufab-pos-modal-icon {
+        display: inline-flex;
+        width: 42px;
+        height: 42px;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        border-radius: 12px;
+        background: var(--sotufab-navy);
+        font-size: 1.15rem;
+    }
+
+    .sotufab-card-summary {
+        margin-bottom: 16px;
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+
+    .sotufab-card-summary-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 0;
+        color: #475569;
+    }
+
+    .sotufab-card-summary-row strong {
+        color: #0f172a;
+        text-align: right;
+    }
+
+    .sotufab-ai-summary-row {
+        align-items: center;
+    }
+
+    .sotufab-ai-status {
+        flex: 0 0 auto;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 0.45em 0.8em;
+    }
+
+    .sotufab-ai-status-success {
+        color: #065f46;
+        background: #d1fae5;
+    }
+
+    .sotufab-ai-status-warning {
+        color: #92400e;
+        background: #fef3c7;
+    }
+
+    .sotufab-ai-recommendation strong {
+        max-width: 62%;
+    }
+
+    .sotufab-summary-note {
+        display: block;
+        padding: 0 0 8px;
+        color: #64748b;
+        text-align: right;
+    }
+
+    .sotufab-card-summary-total {
+        margin-top: 6px;
+        padding-top: 12px;
+        border-top: 1px solid #cbd5e1;
+        color: #0f172a;
+        font-size: 1.05rem;
+        font-weight: 800;
+    }
+
+    .sotufab-card-summary-total strong {
+        color: #047857;
+    }
+
+    .sotufab-pos-modal-message {
+        margin-bottom: 12px;
+        color: #475569;
+        line-height: 1.5;
+    }
+
+    .sotufab-otp-entry {
+        margin-top: 14px;
+    }
+
+    .sotufab-otp-input {
+        min-height: 62px;
+        border: 2px solid #cbd5e1;
+        border-radius: 10px;
+        font-size: 1.65rem;
+        font-weight: 800;
+        letter-spacing: 0.28em;
+        text-align: center;
+    }
+
+    .sotufab-otp-input:focus {
+        border-color: var(--sotufab-amber);
+        box-shadow: 0 0 0 3px rgba(246, 139, 30, 0.16);
+    }
+
+    .sotufab-otp-validity {
+        margin: 9px 0 0;
+        color: #475569;
+        font-size: 0.82rem;
+    }
+
+    .sotufab-security-alert {
+        margin: 12px 0;
+        padding: 12px 14px;
+        color: #7f1d1d;
+        border: 1px solid #fca5a5;
+        border-left: 5px solid #dc2626;
+        border-radius: 8px;
+        background: #fef2f2;
+    }
+
+    .sotufab-security-alert p {
+        margin: 5px 0 0;
+    }
+
+    .sotufab-pos-modal-footer .sotufab-pos-primary {
+        min-width: 150px;
+        color: #fff;
+        border: 0;
+        border-radius: 9px;
+        background: var(--sotufab-amber);
+        font-weight: 800;
+    }
+
+    .sotufab-pos-modal-footer .sotufab-pos-secondary {
+        border-radius: 9px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .pos .sotufab-pos-branding {
+        gap: 10px;
+        padding: 8px 12px;
+    }
+
+    .pos .sotufab-pos-title {
+        font-size: 1rem;
+    }
+
+    .pos .sotufab-pos-security-badge {
+        max-width: 58vw;
+        overflow: hidden;
+        font-size: 0.56rem;
+        text-overflow: ellipsis;
+    }
+}

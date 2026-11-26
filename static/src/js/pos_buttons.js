@@ -2,12 +2,119 @@
 import { _t } from "@web/core/l10n/translation";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
+import { TicketScreen } from "@point_of_sale/app/screens/ticket_screen/ticket_screen";
 import { Order, Orderline } from "@point_of_sale/app/store/models";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
 import { CustomAlertPopup } from "@cartes_reduction/js/pos_pop_up";
+
+ProductScreen.numpadActionName = _t("Encaissement");
+TicketScreen.numpadActionName = _t("Remboursement");
+
+function getAprioriRecommendation(pos, order) {
+    const orderedProductIds = new Set(
+        (order?.get_orderlines?.() || [])
+            .map((line) => line.product?.id)
+            .filter(Boolean)
+    );
+    const matchingRule = [...(pos.product_association_rules || [])]
+        .filter((rule) => {
+            const suggestedProductId = rule.associated_product_id?.[0];
+            return rule.antecedent_product_ids?.length
+                && rule.antecedent_product_ids.every((id) => orderedProductIds.has(id))
+                && suggestedProductId
+                && !orderedProductIds.has(suggestedProductId);
+        })
+        .sort((left, right) => (
+            (Number(right.confidence) || 0) - (Number(left.confidence) || 0)
+        ))[0];
+
+    return matchingRule?.associated_product_id?.[1] || null;
+}
+
+function getAiCustomerStatus(partner) {
+    const segment = partner.customer_segment;
+    const churnProbability = Math.min(
+        1,
+        Math.max(0, Number(partner.churn_probability) || 0)
+    );
+    const hasPurchaseHistory = Boolean(partner.last_purchase_date);
+
+    if (segment === "vip") {
+        return { label: _t("Client VIP"), tone: "success" };
+    }
+    if (segment === "churned" || (hasPurchaseHistory && churnProbability >= 0.66)) {
+        return { label: _t("À réactiver"), tone: "warning" };
+    }
+    return { label: _t("Fidèle"), tone: "success" };
+}
+
+function getLoyaltyCardSummary(pos, order, partner, card) {
+    if (!card) return null;
+
+    const discount = Math.min(100, Math.max(0, Number(card.discount) || 0));
+    const currentTotal = Math.max(0, Number(order.get_total_with_tax()) || 0);
+    const verified = order.cardDiscountVerifiedPartnerId === partner.id;
+    const originalTotal = verified && discount < 100
+        ? currentTotal / (1 - discount / 100)
+        : currentTotal;
+    const savings = originalTotal * discount / 100;
+    const tier = String(card.carte_type || card.name || _t("Fidélité"));
+    const tierLabels = {
+        bronze: "Bronze",
+        silver: "Silver",
+        gold: "Gold",
+        platinum: "Platinum",
+    };
+    const aiStatus = getAiCustomerStatus(partner);
+    const points = Number(pos.getLoyaltyPointsByClient(partner.id)) || 0;
+
+    return {
+        customer: partner.name || _t("Client"),
+        tier: tierLabels[tier.toLowerCase()] || tier,
+        points: new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(points),
+        aiStatus: aiStatus.label,
+        aiStatusTone: aiStatus.tone,
+        recommendation: getAprioriRecommendation(pos, order),
+        discount: `${discount}%`,
+        savings: `${savings.toFixed(2)} TND`,
+        netTotal: `${Math.max(0, originalTotal - savings).toFixed(2)} TND`,
+        verified,
+    };
+}
+
+function getOtpSecurityAlert(message) {
+    const normalized = String(message || "").toLocaleLowerCase();
+    if (normalized.includes("autre vérification") || normalized.includes("concurrent")) {
+        return {
+            title: _t("ALERTE SÉCURITÉ • VÉRIFICATION CONCURRENTE"),
+            message: _t("Une vérification est déjà en cours. Attendez sa fin avant de réessayer afin d'éviter un double encaissement."),
+        };
+    }
+    if (normalized.includes("verrouill") || normalized.includes("tentatives")) {
+        return {
+            title: _t("VÉRIFICATION VERROUILLÉE • 3 ÉCHECS MAXIMUM"),
+            message: message || _t("Le code est verrouillé après trois tentatives. Demandez un nouveau code plus tard."),
+        };
+    }
+    if (
+        normalized.includes("incorrect") ||
+        normalized.includes("expir") ||
+        normalized.includes("utilisé") ||
+        normalized.includes("rejeu")
+    ) {
+        return {
+            title: _t("ALERTE SÉCURITÉ • CODE INVALIDE OU DÉJÀ UTILISÉ"),
+            message: _t("Un code expiré, incorrect ou déjà validé ne peut pas être réutilisé. Demandez un nouveau code."),
+        };
+    }
+    return {
+        title: _t("ALERTE SÉCURITÉ"),
+        message: message || _t("La vérification a été refusée. Ne poursuivez pas l'encaissement."),
+    };
+}
 
 async function verifyOrderCustomer(
     screen,
@@ -23,6 +130,7 @@ async function verifyOrderCustomer(
     }
 
     const card = screen.pos.getHighestTierCardByClient(partner.id);
+    const cardSummary = getLoyaltyCardSummary(screen.pos, order, partner, card);
     if (!card && !forceOtp) return true;
     if (order.cardDiscountVerifiedPartnerId === partner.id) {
         order._applyVerifiedCardDiscount?.();
@@ -53,6 +161,7 @@ async function verifyOrderCustomer(
             otpMode: true,
             confirmText: _t("Vérifier"),
             countdown,
+            cardSummary,
         });
         if (!codeOrQr || !codeOrQr.codeOrQr) return false;
 
@@ -70,6 +179,7 @@ async function verifyOrderCustomer(
             await screen.popup.add(CustomAlertPopup, {
                 title: _t("Échec de vérification"),
                 body: result.message,
+                securityAlert: getOtpSecurityAlert(result.message),
             });
             return false;
         }
@@ -192,19 +302,20 @@ export class CreateButton extends Component {
             return;
         }
 
+        const card = this.pos.getHighestTierCardByClient(client.id);
+        const cardSummary = getLoyaltyCardSummary(this.pos, order, client, card);
         const rewardAmount = bestCard.program_used.reward_type === "specific"
-            ? `${bestCard.total_discount} TND`
+            ? _t("Remise selon les articles éligibles")
             : `${bestCard.program_used.reward_discount}%`;
         const body = [
-            `${_t("Carte sélectionnée")} : ${bestCard.card_name}`,
-            `${_t("Remise totale")} : ${bestCard.total_discount} TND`,
             `${_t("Programme utilisé")} : ${bestCard.program_used.program_name} — ${rewardAmount}`,
-            _t('Cliquez sur "Voir toutes les cartes" pour afficher les autres cartes disponibles.'),
+            _t("La remise fidélité est activée après vérification OTP."),
         ].join("\n");
 
         this.popup.add(CustomAlertPopup, {
             title: _t("Meilleure carte pour cette commande"),
             body,
+            cardSummary,
             confirmText: _t("Voir toutes les cartes"),
             cancelText: _t("Fermer"),
         }).then(

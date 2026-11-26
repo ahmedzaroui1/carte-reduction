@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="cartes_reduction.AdminSecurityDashboard">
+        <main class="o_cr_security_dashboard">
+            <section class="cr_dashboard_hero">
+                <div>
+                    <span class="cr_dashboard_kicker">SOTUFAB · ZERO-TRUST</span>
+                    <h1>Centre de Contrôle</h1>
+                    <p>Vue synthétique de la sécurité des cartes et des opérations caisse.</p>
+                </div>
+                <div class="cr_dashboard_actions">
+                    <button class="btn btn-primary cr_integrity_button"
+                            type="button" t-on-click="verifyIntegrity">
+                        <i class="fa fa-shield" aria-hidden="true"/>
+                        Vérifier l'intégrité SHA-256
+                    </button>
+                    <button class="btn btn-secondary" type="button"
+                            t-on-click="loadStats" t-att-disabled="state.loading">
+                        <i class="fa fa-refresh" aria-hidden="true"/>
+                        Actualiser
+                    </button>
+                </div>
+            </section>
+
+            <div t-if="state.error" class="alert alert-danger cr_dashboard_error"
+                 role="alert">
+                <strong>Les compteurs n'ont pas pu être chargés.</strong>
+                <span t-esc="state.error"/>
+            </div>
+
+            <section class="cr_dashboard_metrics" aria-label="Indicateurs de sécurité">
+                <article class="cr_metric_card cr_metric_cards">
+                    <div class="cr_metric_icon"><i class="fa fa-id-card-o" aria-hidden="true"/></div>
+                    <div>
+                        <p>Cartes actives</p>
+                        <strong t-if="state.loaded" t-esc="state.activeCards"/>
+                        <strong t-else="">—</strong>
+                        <span>Attributions valides et non expirées</span>
+                    </div>
+                </article>
+                <article class="cr_metric_card cr_metric_redemptions">
+                    <div class="cr_metric_icon"><i class="fa fa-check-circle-o" aria-hidden="true"/></div>
+                    <div>
+                        <p>Validations POS</p>
+                        <strong t-if="state.loaded" t-esc="state.posValidations"/>
+                        <strong t-else="">—</strong>
+                        <span>Remises confirmées par la caisse</span>
+                    </div>
+                </article>
+                <article class="cr_metric_card cr_metric_alerts">
+                    <div class="cr_metric_icon"><i class="fa fa-shield" aria-hidden="true"/></div>
+                    <div>
+                        <p>Alertes bloquées</p>
+                        <strong t-if="state.loaded" t-esc="state.blockedAlerts"/>
+                        <strong t-else="">—</strong>
+                        <span>Rejeux, accès refusés et anomalies stoppées</span>
+                    </div>
+                </article>
+            </section>
+
+            <p class="cr_dashboard_refresh_note" aria-live="polite">
+                <i class="fa fa-clock-o" aria-hidden="true"/>
+                Actualisation automatique toutes les 30 secondes.
+            </p>
+        </main>
+    </t>
+</templates>

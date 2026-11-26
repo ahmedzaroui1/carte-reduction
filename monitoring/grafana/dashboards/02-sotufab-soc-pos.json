@@ -1,0 +1,83 @@
+{
+  "id": null,
+  "uid": "sotufab-soc-pos",
+  "title": "02 - Sotufab SOC : Sessions & Sécurité Caissiers POS",
+  "tags": ["sotufab", "soc", "pos", "cashiers"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Sessions POS ouvertes (cumul)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=\"pos_session_opened\"})", "legendFormat": "Ouvertures"}],
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Sessions POS clôturées (cumul)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=\"pos_session_closed\"})", "legendFormat": "Clôtures"}],
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Échecs PIN / OTP cumulés",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=~\"pin_failed|pos_otp_failed\"})", "legendFormat": "Échecs"}],
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Remises validées cumulées",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=\"redemption\"})", "legendFormat": "Remises"}],
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 5,
+      "type": "piechart",
+      "title": "Activité cumulée de caisse par type",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (event_type) (odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=~\"pos_session_opened|pos_session_closed|pin_failed|pos_otp_failed|redemption\"})", "legendFormat": "{{event_type}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "options": {"displayLabels": ["name", "percent"], "legend": {"displayMode": "table", "placement": "right", "showLegend": true}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "values": true}, "tooltip": {"mode": "single", "sort": "desc"}}
+    },
+    {
+      "id": 6,
+      "type": "bargauge",
+      "title": "Événements POS cumulés par type",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (event_type) (odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=~\"pos_session_opened|pos_session_closed|pin_failed|pos_otp_failed|redemption\"})", "legendFormat": "{{event_type}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"displayMode": "gradient", "maxVizHeight": 300, "minVizHeight": 16, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Tendance des sessions et contrôles POS",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (event_type) (increase(odoo_security_audit_events_by_role_total{role=\"cashier\",event_type=~\"pos_session_opened|pos_session_closed|pin_failed|pos_otp_failed|redemption\"}[5m]))", "legendFormat": "{{event_type}}"}],
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 13},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 35, "gradientMode": "opacity", "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never"}, "unit": "short"}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    }
+  ]
+}

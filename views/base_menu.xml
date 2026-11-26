@@ -1,72 +1,302 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-<!-- menu principal pour accéder à l'action -->
-<menuitem id="menu_cartes_reduction" name="Cartes de Réduction" sequence="1" />
+    <record id="asset_security_dashboard_template" model="ir.asset">
+        <field name="name">Cartes de Réduction Security Dashboard Template</field>
+        <field name="bundle">web.assets_backend</field>
+        <field name="directive">append</field>
+        <field name="path">cartes_reduction/static/src/xml/admin_security_dashboard.xml</field>
+        <field name="sequence" eval="10"/>
+    </record>
+    <record id="asset_security_dashboard_js" model="ir.asset">
+        <field name="name">Cartes de Réduction Security Dashboard JS</field>
+        <field name="bundle">web.assets_backend</field>
+        <field name="directive">append</field>
+        <field name="path">cartes_reduction/static/src/js/admin_security_dashboard.js</field>
+        <field name="sequence" eval="20"/>
+    </record>
+    <record id="asset_admin_backend_scss" model="ir.asset">
+        <field name="name">Cartes de Réduction Admin Backend Styles</field>
+        <field name="bundle">web.assets_backend</field>
+        <field name="directive">append</field>
+        <field name="path">cartes_reduction/static/src/scss/admin_backend.scss</field>
+        <field name="sequence" eval="30"/>
+    </record>
 
+    <record id="view_customer_behavior_graph" model="ir.ui.view">
+        <field name="name">customer.behavior.graph</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <graph string="Scoring et prédictions des clients" type="pie">
+                <field name="customer_segment" type="row"/>
+                <field name="churn_probability" type="measure"/>
+                <field name="id" type="measure"/>
+            </graph>
+        </field>
+    </record>
 
+    <record id="action_customer_behavior_dashboard" model="ir.actions.act_window">
+        <field name="name">Scoring &amp; Prédictions Clients</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">graph,tree,form,pivot</field>
+        <field name="view_id" ref="view_customer_behavior_graph"/>
+        <field name="domain">[('customer_segment', 'in', ('vip', 'churned'))]</field>
+        <field name="context">{'graph_measure': 'churn_probability', 'graph_groupbys': ['customer_segment'], 'search_default_purchased_customers': 1}</field>
+    </record>
 
-    <!-- Menu sous Gestion des Cartes -->
-    <menuitem id="menu_gestion_cartes" name="Gestion des Cartes" parent="menu_cartes_reduction" sequence="10"/>
-    <menuitem id="menu_creer_carte" name="Créer une nouvelle carte" parent="menu_gestion_cartes" action="action_creer_carte" sequence="10"/>
-    <menuitem id="menu_lister_cartes" name="Lister les cartes disponibles" parent="menu_gestion_cartes" action="action_lister_cartes" sequence="20"/>
-    <menuitem id="menu_lister_conditions" name="Conditions d'obtention" parent="menu_gestion_cartes" action="action_lister_conditions" sequence="25"/>
-    <menuitem id="menu_attribuer_carte" name="Attribuer une carte à un client" parent="menu_gestion_cartes" action="action_cartes_attribution_list" sequence="30"/>
-    <menuitem id="menu_renouveler_carte" name="Renouveler une carte expirée" parent="menu_gestion_cartes" action="action_renouveler_carte" sequence="40"/>
-    <menuitem id="menu_cartes_clients_secure" name="Clients et CIN masquées" parent="menu_gestion_cartes" action="action_cartes_clients_secure" sequence="50" groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <record id="action_customer_behavior_dashboard_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="0"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="view_customer_behavior_graph"/>
+        <field name="act_window_id" ref="action_customer_behavior_dashboard"/>
+    </record>
 
-    <!-- Menu Gestion des Promotions  -->
-    <menuitem id="menu_promotions" name="Gestion des Promo" parent="menu_cartes_reduction" sequence="20"/>
-    <menuitem id="menu_ajouter_promotion" name="Ajouter une promotion" parent="menu_promotions" action="action_loyalty_program" sequence="10"/>
-    <menuitem id="menu_gestion_reductions" name="Règles de Recommandation (Apriori)" parent="menu_promotions" action="action_product_association" sequence="20" groups="base.group_system"/>
-    <menuitem id="menu_custom_promotions" name="Gérer les promotions personnalisées" parent="menu_promotions" action="action_gestion_reductions" sequence="25"/>
-    <menuitem id="menu_promotions_en_cours" name="Voir les promotions en cours" parent="menu_promotions" action="action_promotions_en_cours" sequence="30"/>
-    <menuitem id="menu_planifier_promotions" name="Planifier des promotions futures" parent="menu_promotions" action="action_planifier_promotions" sequence="40"/>
+    <record id="action_security_dashboard" model="ir.actions.client">
+        <field name="name">Centre de Contrôle</field>
+        <field name="tag">cartes_reduction.security_dashboard</field>
+    </record>
 
-    <!-- Menu Fidélité Clients -->
-    <menuitem id="menu_fidelite_clients" name="Fidélité Clients" parent="menu_cartes_reduction" sequence="30"/>
-    <menuitem id="menu_gestion_points" name="Gérer les points de fidélité" parent="menu_fidelite_clients" action="action_gestion_points" sequence="10"/>
-    <menuitem id="menu_points_loyalty_cards" name="Soldes de Points Clients" parent="menu_fidelite_clients" action="action_points_loyalty_cards" sequence="15"/>
-    <menuitem id="menu_consulter_historique_achats" name="liste des cartes" parent="menu_fidelite_clients" action="action_loyalty_program_view_tree" sequence="20"/>
-    <menuitem id="menu_echanger_points" name="Générer Recommandations IA" parent="menu_fidelite_clients" action="action_product_association_generator" sequence="30" groups="base.group_system"/>
-    <menuitem id="menu_identification_vip" name="Identifier les clients VIP" parent="menu_fidelite_clients" action="action_partner_vip" sequence="40"/>
+    <menuitem id="menu_cartes_reduction" name="Cartes de Réduction"
+              action="action_lister_cartes" sequence="1"
+              web_icon="cartes_reduction,static/description/icon.png"
+              groups="base.group_system"/>
+    <menuitem id="menu_lister_cartes" name="Cartes de Réduction"
+              parent="menu_cartes_reduction" action="action_lister_cartes" sequence="10"
+              groups="base.group_system"/>
+    <menuitem id="menu_promotions_programmes" name="Promotions"
+              parent="menu_cartes_reduction" action="action_loyalty_program_view_tree"
+              sequence="20" groups="base.group_system"/>
+    <menuitem id="menu_clients_cin_chiffres" name="Clients"
+              parent="menu_cartes_reduction" action="base.action_partner_form"
+              sequence="30" groups="base.group_system"/>
+    <menuitem id="menu_security_zero_trust" name="Sécurité &amp; Audit Zero-Trust"
+              action="action_security_dashboard" sequence="2"
+              web_icon="cartes_reduction,static/description/icon.png"
+              groups="base.group_system"/>
+    <menuitem id="menu_security_dashboard_center" name="Centre de Contrôle"
+              parent="menu_security_zero_trust" action="action_security_dashboard"
+              sequence="10" groups="base.group_system"/>
+    <menuitem id="menu_security_cashier_logins" name="Connexions Caissiers POS"
+              parent="menu_security_zero_trust" action="action_security_cashier_logins"
+              sequence="20" groups="base.group_system"/>
+    <menuitem id="menu_security_ecommerce_logins" name="Connexions Clients E-Commerce"
+              parent="menu_security_zero_trust" action="action_security_ecommerce_logins"
+              sequence="21" groups="base.group_system"/>
+    <menuitem id="menu_security_audit" name="Connexions Administration"
+              parent="menu_security_zero_trust" action="action_security_admin_logins"
+              sequence="22" groups="base.group_system"/>
+    <menuitem id="menu_security_usage" name="Utilisation Cartes &amp; OTP"
+              parent="menu_security_zero_trust" action="action_security_usage"
+              sequence="30" groups="base.group_system"/>
+    <menuitem id="menu_security_incidents" name="Incidents &amp; Alertes SHA-256"
+              parent="menu_security_zero_trust" action="action_security_incidents"
+              sequence="40" groups="base.group_system"/>
+    <menuitem id="menu_rbac_users" name="Gestion RBAC"
+              parent="menu_security_zero_trust" action="base.action_res_users"
+              sequence="50" groups="base.group_system"/>
 
-    <!-- Menu Notifications et Alertes -->
-    <menuitem id="menu_notifications_alertes" name="Notifications et Alertes" parent="menu_cartes_reduction" sequence="40"/>
-    <menuitem id="menu_rappels_automatiques" name="Rappels automatiques" parent="menu_notifications_alertes" action="action_rappels_automatiques" sequence="10"/>
-    <menuitem id="menu_notifications_clients" name="Notifications clients" parent="menu_notifications_alertes" action="action_notification_client" sequence="20"/>
-    <menuitem id="menu_alertes_cartes_inactives" name="Alerte sur les cartes inactives" parent="menu_notifications_alertes" action="action_alertes_cartes_inactives" sequence="30"/>
+    <menuitem id="menu_scoring_predictions_root" name="Scoring &amp; Prédictions"
+              action="action_customer_behavior_dashboard" sequence="3"
+              web_icon="cartes_reduction,static/description/icon.png"
+              groups="base.group_system"/>
+    <menuitem id="menu_envoi_newsletters" name="Analyse IA &amp; CLV/Churn"
+              parent="menu_scoring_predictions_root" action="action_customer_behavior_dashboard"
+              sequence="10" groups="base.group_system"/>
+    <menuitem id="menu_gestion_reductions" name="Recommandations Produits"
+              parent="menu_scoring_predictions_root" action="action_product_association"
+              sequence="20" groups="base.group_system"/>
 
-    <!-- Menu Rapports et Analyses -->
-    <menuitem id="menu_rapports_analyses" name="Rapports et Analyses" parent="menu_cartes_reduction" sequence="50"/>
-    <menuitem id="menu_envoi_newsletters" name="Analyse IA &amp; CLV Clients" parent="menu_rapports_analyses" action="action_customer_behavior_dashboard" sequence="5" groups="base.group_system"/>
-    <menuitem id="menu_rapports_recommandations_ia" name="Recommandations IA (Apriori)" parent="menu_rapports_analyses" action="action_product_association" sequence="10" groups="base.group_system"/>
-    <menuitem id="menu_utilisation_cartes" name="Statistiques d'Utilisation des Cartes" parent="menu_rapports_analyses" action="action_carte_usage_stats" sequence="20"/>
-    <menuitem id="menu_security_audit" name="Sécurité &amp; Audit Zero-Trust"
-              sequence="2" groups="base.group_system,cartes_reduction.cartes_manager_group"/>
-    <menuitem id="menu_security_audit_pos_logins"
-              name="Connexions Caissiers POS"
-              parent="menu_security_audit"
-              action="action_security_audit_pos_logins"
-              sequence="10"
-              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
-    <menuitem id="menu_security_audit_ecommerce_logins"
-              name="Connexions Clients E-Commerce"
-              parent="menu_security_audit"
-              action="action_security_audit_ecommerce_logins"
-              sequence="20"
-              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
-    <menuitem id="menu_security_audit_admin_logins"
-              name="Connexions Administration"
-              parent="menu_security_audit"
-              action="action_security_audit_admin_logins"
-              sequence="30"
-              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
-    <menuitem id="menu_security_audit_incidents"
-              name="Incidents &amp; Alertes SHA-256"
-              parent="menu_security_audit"
-              action="action_security_audit"
-              sequence="40"
-              groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+    <delete model="ir.ui.menu" id="menu_dashboard_vente_graph"/>
+    <delete model="ir.ui.menu" id="menu_dashboard_product_sales_graph"/>
+    <delete model="ir.ui.menu" id="menu_dashboard_purchase_by_customer"/>
+    <delete model="ir.ui.menu" id="menu_dashboard_vente_root"/>
+    <delete model="ir.ui.menu" id="menu_rapports_analyses"/>
+    <delete model="ir.ui.menu" id="menu_points_loyalty_cards"/>
+    <delete model="ir.ui.menu" id="menu_gestion_cartes"/>
 
+    <record id="view_partner_admin_console" model="ir.ui.view">
+        <field name="name">res.partner.admin.console</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="priority" eval="99"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="attributes">
+                <attribute name="class" add="cr_partner_360_form" separator=" "/>
+            </xpath>
+            <xpath expr="//page[.//field[@name='rfm_score']]" position="replace"/>
+            <xpath expr="//page[.//field[@name='predicted_clv']]" position="replace"/>
+            <xpath expr="//page[.//field[@name='date_attribution']]" position="replace"/>
+            <xpath expr="//group[.//button[@name='action_reveal_cin']]" position="replace"/>
+            <xpath expr="//div[hasclass('oe_chatter')]" position="replace"/>
+            <xpath expr="//page[@name='contact_addresses']" position="after">
+                <page string="Fidélité &amp; Suivi Client"
+                      groups="base.group_system" name="customer_360_loyalty_scoring">
+                    <field name="currency_id" invisible="1"/>
+                    <div class="cr_partner_360">
+                        <div class="cr_partner_360_kpis">
+                            <section class="cr_360_kpi_card cr_360_kpi_loyalty">
+                                <h3>STATUT FIDÉLITÉ</h3>
+                                <div class="cr_360_data_row cr_360_tier_row">
+                                    <span class="cr_360_row_label">Palier</span>
+                                    <field name="active_loyalty_tier" nolabel="1"
+                                       widget="badge" readonly="1"
+                                       decoration-success="active_loyalty_tier in ['Gold', 'Platinum']"
+                                       decoration-warning="active_loyalty_tier == 'Silver'"
+                                       decoration-info="active_loyalty_tier == 'Bronze'"/>
+                                </div>
+                                <div class="cr_360_data_row">
+                                    <span class="cr_360_row_label">Solde disponible :</span>
+                                    <span class="cr_360_row_value">
+                                        <field name="loyalty_points_balance" nolabel="1" readonly="1"/>
+                                        <span class="cr_360_unit">pts</span>
+                                    </span>
+                                </div>
+                                <div class="cr_360_data_row">
+                                    <span class="cr_360_row_label">Cumul d'achats :</span>
+                                    <field name="total_sales" nolabel="1"
+                                           widget="monetary" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </section>
+                            <section class="cr_360_kpi_card cr_360_kpi_clv">
+                                <h3>POTENTIEL SUR 12 MOIS</h3>
+                                <div class="cr_360_kpi_value">
+                                    <field name="predicted_clv" nolabel="1"
+                                           widget="monetary" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                                <p class="cr_360_kpi_caption">Estimation annuelle</p>
+                            </section>
+                            <section class="cr_360_kpi_card cr_360_kpi_churn">
+                                <h3>RÉTENTION CLIENT</h3>
+                                <div class="cr_360_kpi_value">
+                                    <field name="churn_probability" nolabel="1"
+                                           widget="percentage" readonly="1"
+                                           options="{'digits': [16, 2]}"/>
+                                </div>
+                                <div class="cr_360_status_badges">
+                                    <span class="badge cr_360_badge_success"
+                                          invisible="churn_probability &gt;= 0.30">
+                                        Client Fidèle
+                                    </span>
+                                    <span class="badge cr_360_badge_warning"
+                                          invisible="churn_probability &lt; 0.30 or churn_probability &gt;= 0.66">
+                                        À surveiller
+                                    </span>
+                                    <span class="badge cr_360_badge_danger"
+                                          invisible="churn_probability &lt; 0.66">
+                                        Risque élevé
+                                    </span>
+                                </div>
+                            </section>
+                            <section class="cr_360_kpi_card cr_360_kpi_activity">
+                                <h3>ACTIVITÉ COMMERCIALE</h3>
+                                <div class="cr_360_data_row">
+                                    <span class="cr_360_row_label">Score d'engagement</span>
+                                    <field name="rfm_score" nolabel="1" readonly="1"/>
+                                </div>
+                                <div class="cr_360_data_row">
+                                    <span class="cr_360_row_label">Indice de fréquence</span>
+                                    <field name="purchase_frequency" nolabel="1" readonly="1"/>
+                                </div>
+                                <div class="cr_360_data_row">
+                                    <span class="cr_360_row_label">Dernière commande</span>
+                                    <field name="last_purchase_date" nolabel="1" readonly="1"/>
+                                </div>
+                            </section>
+                        </div>
+                        <div class="cr_partner_360_details">
+                            <section class="cr_360_detail_card cr_360_active_cards">
+                                <h3>Cartes de réduction</h3>
+                                <field name="cartes_attribution_ids" string="Cartes actives"
+                                       domain="[('state', 'in', ('validated', 'renouvelé')), '|', ('date_expiration', '=', False), ('date_expiration', '&gt;=', context_today())]"
+                                       mode="tree" class="cr_active_cards_field">
+                                    <tree create="0" edit="0" delete="0">
+                                        <field name="carte_ids" string="Carte"
+                                               widget="many2many_tags"/>
+                                        <field name="date_expiration"
+                                               string="Date d'expiration"/>
+                                        <field name="state" string="Statut"/>
+                                    </tree>
+                                </field>
+                            </section>
+                            <section class="cr_360_detail_card cr_360_privacy">
+                                <h3>Identité &amp; Conformité</h3>
+                                <div class="cr_360_privacy_badge">
+                                    <span class="badge cr_360_badge_success">
+                                        Donnée protégée
+                                    </span>
+                                </div>
+                                <field name="cin_masked" string="Numéro CIN masqué"
+                                       readonly="1"/>
+                                <field name="cin" string="Mettre à jour le CIN"
+                                       placeholder="Saisir une nouvelle CIN"
+                                       groups="base.group_system,cartes_reduction.cartes_manager_group"/>
+                                <div class="cr_360_actions">
+                                    <button name="action_reveal_cin"
+                                            string="Consulter le numéro complet"
+                                            type="object"
+                                            class="btn-secondary cr_reveal_cin"
+                                            groups="base.group_system"/>
+                                    <button name="action_refresh_ai_predictions"
+                                            string="Actualiser l'évaluation"
+                                            type="object"
+                                            class="btn-primary cr_ai_refresh_button"
+                                            icon="fa-refresh"
+                                            groups="base.group_system"/>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_customer_behavior_tree_french" model="ir.ui.view">
+        <field name="name">customer.behavior.tree.french</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="view_customer_behavior_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="attributes">
+                <attribute name="string">Scoring &amp; Prédictions Clients</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_customer_behavior_search_french" model="ir.ui.view">
+        <field name="name">customer.behavior.search.french</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="view_customer_behavior_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="attributes">
+                <attribute name="string">Scoring &amp; Prédictions Clients</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_product_association_tree_french" model="ir.ui.view">
+        <field name="name">product.association.tree.french</field>
+        <field name="model">product.association</field>
+        <field name="inherit_id" ref="view_product_association_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="attributes">
+                <attribute name="string">Recommandations de produits</attribute>
+            </xpath>
+            <xpath expr="//field[@name='antecedent_product_ids']" position="attributes">
+                <attribute name="string">Produits de départ</attribute>
+            </xpath>
+            <xpath expr="//field[@name='associated_product_id']" position="attributes">
+                <attribute name="string">Produit recommandé</attribute>
+            </xpath>
+            <xpath expr="//field[@name='confidence']" position="attributes">
+                <attribute name="string">Fiabilité</attribute>
+            </xpath>
+            <xpath expr="//field[@name='support']" position="attributes">
+                <attribute name="string">Fréquence d'association</attribute>
+            </xpath>
+            <xpath expr="//field[@name='card_id']" position="attributes">
+                <attribute name="string">Carte associée</attribute>
+            </xpath>
+        </field>
+    </record>
 </odoo>
-

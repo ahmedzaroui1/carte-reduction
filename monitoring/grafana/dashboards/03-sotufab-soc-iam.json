@@ -1,0 +1,73 @@
+{
+  "id": null,
+  "uid": "sotufab-soc-iam",
+  "title": "03 - Sotufab SOC : Authentification E-Commerce & IAM",
+  "tags": ["sotufab", "soc", "iam", "ecommerce"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Connexions clients portail cumulées",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"ecommerce\",event_type=\"login\"})", "legendFormat": "Connexions"}],
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Déconnexions clients portail cumulées",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"ecommerce\",event_type=\"logout\"})", "legendFormat": "Déconnexions"}],
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Échecs de connexion clients cumulés",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(odoo_security_audit_events_by_role_total{role=\"ecommerce\",event_type=\"login_failed\"})", "legendFormat": "Échecs"}],
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}, "unit": "short"}, "overrides": []},
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Authentifications cumulées par rôle",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (role, event_type) (odoo_security_audit_events_by_role_total{event_type=~\"login|logout|login_failed\",role=~\"cashier|ecommerce|admin\"})", "legendFormat": "{{role}} · {{event_type}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "options": {"displayLabels": ["name", "percent"], "legend": {"displayMode": "table", "placement": "right", "showLegend": true}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "values": true}, "tooltip": {"mode": "single", "sort": "desc"}}
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Activité IAM par rôle et événement",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (role, event_type) (odoo_security_audit_events_by_role_total{event_type=~\"login|logout|login_failed\",role=~\"cashier|ecommerce|admin\"})", "legendFormat": "{{role}} · {{event_type}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}, "overrides": []},
+      "options": {"displayMode": "gradient", "maxVizHeight": 300, "minVizHeight": 16, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Tendance des connexions et échecs par rôle",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (role, event_type) (increase(odoo_security_audit_events_by_role_total{event_type=~\"login|logout|login_failed\",role=~\"cashier|ecommerce|admin\"}[5m]))", "legendFormat": "{{role}} · {{event_type}}"}],
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 13},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "line", "fillOpacity": 35, "gradientMode": "opacity", "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never"}, "unit": "short"}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    }
+  ]
+}

@@ -122,8 +122,14 @@ class PosSession(models.Model):
     def _loader_params_res_partner(self):
         params = super()._loader_params_res_partner()
         fields_to_load = params['search_params']['fields']
-        if 'parent_id' not in fields_to_load:
-            fields_to_load.append('parent_id')
+        for field_name in (
+            'parent_id',
+            'customer_segment',
+            'churn_probability',
+            'last_purchase_date',
+        ):
+            if field_name not in fields_to_load:
+                fields_to_load.append(field_name)
         return params
 
 

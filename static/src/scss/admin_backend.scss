@@ -1,0 +1,592 @@
+.o_cr_security_dashboard {
+    color: #24202a;
+    margin: 0 auto;
+    max-width: 1440px;
+    padding: 32px;
+
+    .cr_dashboard_hero {
+        align-items: center;
+        background: linear-gradient(120deg, #fff 58%, #f7f3f6 100%);
+        border: 1px solid #e8e1e7;
+        border-left: 5px solid #714b67;
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(37, 25, 36, 0.06);
+        display: flex;
+        gap: 24px;
+        justify-content: space-between;
+        margin-bottom: 24px;
+        padding: 28px 32px;
+
+        h1 {
+            color: #714b67;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 6px 0;
+        }
+
+        p {
+            color: #625c65;
+            margin: 0;
+        }
+    }
+
+    .cr_dashboard_kicker {
+        color: #714b67;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+    }
+
+    .cr_dashboard_actions {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .cr_integrity_button,
+    .btn-primary {
+        background-color: #714b67;
+        border-color: #714b67;
+        border-radius: 8px;
+        font-weight: 600;
+
+        &:hover,
+        &:focus {
+            background-color: #5e3d55;
+            border-color: #5e3d55;
+        }
+    }
+
+    .cr_dashboard_metrics {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cr_metric_card {
+        align-items: flex-start;
+        background: #fff;
+        border: 1px solid #e9e5e9;
+        border-radius: 10px;
+        box-shadow: 0 5px 18px rgba(37, 25, 36, 0.05);
+        display: flex;
+        gap: 16px;
+        min-height: 150px;
+        padding: 22px;
+        transition: box-shadow 160ms ease, transform 160ms ease;
+
+        &:hover {
+            box-shadow: 0 10px 24px rgba(37, 25, 36, 0.1);
+            transform: translateY(-2px);
+        }
+
+        p {
+            color: #4c4650;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0 0 8px;
+        }
+
+        strong {
+            color: #28212a;
+            display: block;
+            font-size: 32px;
+            line-height: 1.1;
+        }
+
+        span {
+            color: #77717a;
+            display: block;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+    }
+
+    .cr_metric_icon {
+        align-items: center;
+        background: #f3edf2;
+        border-radius: 10px;
+        color: #714b67;
+        display: flex;
+        flex: 0 0 44px;
+        height: 44px;
+        justify-content: center;
+        width: 44px;
+
+        i {
+            font-size: 18px;
+        }
+    }
+
+    .cr_metric_redemptions .cr_metric_icon {
+        background: #edf6ef;
+        color: #34845a;
+    }
+
+    .cr_metric_alerts .cr_metric_icon {
+        background: #fff0ef;
+        color: #bd4b46;
+    }
+
+    .cr_dashboard_error {
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .cr_dashboard_refresh_note {
+        color: #77717a;
+        font-size: 12px;
+        margin: 16px 2px 0;
+    }
+}
+
+.o_form_view .cr_admin_cards {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px 0;
+
+    .cr_admin_card {
+        background: #fff;
+        border: 1px solid #e8e1e7;
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(37, 25, 36, 0.06);
+        min-width: 0;
+        padding: 22px;
+
+        h3 {
+            border-bottom: 1px solid #eee9ed;
+            color: #714b67;
+            font-size: 17px;
+            font-weight: 700;
+            margin: 0 0 16px;
+            padding-bottom: 12px;
+        }
+
+        h4 {
+            color: #514a53;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 18px 0 8px;
+        }
+    }
+
+    .cr_admin_card_intro {
+        color: #706974;
+        margin-bottom: 16px;
+    }
+
+    .cr_encryption_status {
+        margin: 8px 0 18px;
+    }
+
+    .badge {
+        border-radius: 999px;
+        font-weight: 600;
+        padding: 0.4em 0.75em;
+    }
+
+    .cr_reveal_cin {
+        border-radius: 8px;
+        margin-top: 14px;
+    }
+
+    .cr_active_cards_field {
+        display: block;
+        margin-top: 8px;
+        overflow-x: auto;
+    }
+}
+
+.o_form_view.cr_partner_360_form {
+    .o_form_sheet_bg {
+        width: 100%;
+    }
+
+    .o_form_sheet_bg .o_form_sheet {
+        max-width: none;
+        width: 100%;
+    }
+
+    .cr_partner_360 {
+        background: #f8fafc;
+        border-radius: 16px;
+        padding: 20px;
+    }
+
+    .cr_partner_360_kpis {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-bottom: 20px;
+    }
+
+    .cr_360_kpi_card,
+    .cr_360_detail_card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        min-width: 0;
+        padding: 20px;
+
+        h3 {
+            border: 0;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            line-height: 1.4;
+            margin: 0 0 16px;
+            min-height: 0;
+            padding: 0;
+            text-transform: uppercase;
+        }
+
+        .o_field_widget {
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge {
+            border-radius: 9999px;
+            font-weight: 600;
+            padding: 4px 12px;
+        }
+    }
+
+    .cr_360_kpi_value {
+        color: #0f172a;
+        font-size: 26px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        line-height: 1.25;
+        min-height: 40px;
+
+        .o_field_widget {
+            color: inherit;
+            font-size: inherit;
+            font-variant-numeric: inherit;
+            font-weight: inherit;
+        }
+    }
+
+    .cr_360_kpi_caption {
+        color: #64748b;
+        font-size: 13px;
+        margin: 8px 0 0;
+    }
+
+    .cr_partner_360_details {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    }
+
+    .cr_360_data_row {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        min-height: 38px;
+        padding: 5px 0;
+
+        .o_field_widget {
+            margin: 0;
+            text-align: right;
+        }
+    }
+
+    .cr_360_row_label {
+        color: #475569;
+        font-size: 13px;
+    }
+
+    .cr_360_row_value {
+        align-items: baseline;
+        color: #0f172a;
+        display: inline-flex;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        gap: 5px;
+        white-space: nowrap;
+    }
+
+    .cr_360_unit {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .cr_360_tier_row {
+        justify-content: flex-start;
+        margin-bottom: 4px;
+
+        .cr_360_row_label {
+            margin-right: 4px;
+        }
+
+        .text-bg-success {
+            background: #dcfce7 !important;
+            color: #166534 !important;
+        }
+
+        .text-bg-warning {
+            background: #fef3c7 !important;
+            color: #92400e !important;
+        }
+
+        .text-bg-info {
+            background: #dbeafe !important;
+            color: #1e40af !important;
+        }
+    }
+
+    .cr_360_status_badges {
+        margin-top: 8px;
+    }
+
+    .cr_360_badge_success {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .cr_360_badge_warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .cr_360_badge_danger {
+        background: #ffe4e6;
+        color: #9f1239;
+    }
+
+    .cr_active_cards_field {
+        display: block;
+        margin-top: 6px;
+        overflow-x: auto;
+
+        .o_list_table {
+            border-collapse: separate;
+            border-spacing: 0;
+
+            thead th {
+                background: #f1f5f9;
+                color: #64748b;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+
+            tbody tr:hover {
+                background: #f8fafc;
+            }
+        }
+    }
+
+    .cr_360_privacy_badge {
+        margin: 2px 0 14px;
+    }
+
+    .cr_360_actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+
+        .btn {
+            border-radius: 9999px;
+            font-weight: 600;
+            padding: 8px 18px;
+        }
+    }
+}
+
+.o_form_view .cr_scoring_cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    .cr_clv_card,
+    .cr_churn_card,
+    .cr_purchase_rhythm_card {
+        min-height: 210px;
+    }
+
+    .cr_clv_kpi {
+        align-items: baseline;
+        color: #714b67;
+        display: flex;
+        min-height: 76px;
+
+        .o_field_widget {
+            color: #714b67;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+    }
+
+    .cr_clv_unit {
+        color: #706974;
+        font-size: 12px;
+    }
+
+    .cr_churn_meter {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+    }
+
+    .cr_churn_progress {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .cr_churn_percentage {
+        color: #514a53;
+        flex: 0 0 auto;
+        font-weight: 700;
+    }
+
+    .cr_churn_badges {
+        margin-top: 16px;
+
+        .badge {
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0.45em 0.8em;
+        }
+    }
+
+    .cr_ai_refresh_button {
+        border-radius: 8px;
+        margin: 4px 0 12px;
+        padding: 9px 14px;
+    }
+}
+
+.o_form_view.cr_card_admin_form {
+    .oe_title h1 {
+        color: #714b67;
+        font-weight: 700;
+    }
+
+    .cr_admin_cards {
+        margin-top: 18px;
+    }
+
+    .cr_card_image {
+        margin: 0 0 16px;
+        max-height: 180px;
+        max-width: 240px;
+        object-fit: contain;
+    }
+}
+
+.cr_cards_kanban {
+    .cr_card_catalog_item {
+        background: #fff;
+        border: 1px solid #e8e1e7;
+        border-radius: 10px;
+        box-shadow: 0 5px 18px rgba(37, 25, 36, 0.06);
+        min-height: 230px;
+        overflow: hidden;
+        transition: box-shadow 160ms ease, transform 160ms ease;
+
+        &:hover {
+            box-shadow: 0 10px 24px rgba(37, 25, 36, 0.12);
+            transform: translateY(-2px);
+        }
+    }
+
+    .cr_card_catalog_image {
+        align-items: center;
+        background: #f7f3f6;
+        border-radius: 8px;
+        display: flex;
+        justify-content: center;
+        margin: 16px auto 10px;
+        overflow: hidden;
+        width: calc(100% - 32px);
+
+        img {
+            height: 118px;
+            object-fit: contain;
+            width: 100%;
+        }
+    }
+
+    .cr_card_catalog_details {
+        padding: 8px 18px 18px;
+
+        strong {
+            color: #714b67;
+            font-size: 15px;
+        }
+
+        .badge {
+            border-radius: 999px;
+            font-weight: 600;
+            margin: 8px 6px 0 0;
+            padding: 0.4em 0.75em;
+        }
+    }
+}
+
+.o_list_view.cr_cards_tree,
+.o_list_view.cr_ai_customer_tree {
+    .o_list_table {
+        border-collapse: separate;
+        border-spacing: 0;
+
+        thead th {
+            background: #f7f3f6;
+            color: #514a53;
+            font-weight: 700;
+        }
+
+        tbody tr:hover {
+            background: #fbf8fa;
+        }
+
+        .badge {
+            border-radius: 999px;
+            font-weight: 600;
+            padding: 0.4em 0.75em;
+        }
+    }
+}
+
+@media (max-width: 900px) {
+    .o_cr_security_dashboard {
+        padding: 20px;
+
+        .cr_dashboard_hero {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .cr_dashboard_metrics {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .o_form_view .cr_admin_cards {
+        grid-template-columns: 1fr;
+    }
+
+    .o_form_view.cr_partner_360_form {
+        .cr_partner_360_kpis,
+        .cr_partner_360_details {
+            grid-template-columns: 1fr;
+        }
+    }
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+    .o_form_view.cr_partner_360_form .cr_partner_360_kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

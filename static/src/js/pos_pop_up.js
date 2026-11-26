@@ -29,29 +29,24 @@ export class CustomAlertPopup extends AbstractAwaitablePopup {
     }
 
     static defaultProps = {
-        confirmText: _lt("Ok"),
-        cancelText: _lt("Cancel"),
-        title: _lt("Alert"),
-        body: _lt("Something happened"),
+        confirmText: _lt("Confirmer"),
+        cancelText: _lt("Fermer"),
+        title: _lt("Information"),
+        body: _lt("Une action est requise."),
     };
 
-    // Quand on clique sur le bouton "Ok"
     async confirm() {
-        if (this.props.otpMode && !this.state.remaining) {
-            this.props.resolve(false);
-            this.props.close();
+        if (this.props.otpMode && (!this.state.remaining || !this.state.otp.trim())) {
             return;
         }
         this.props.resolve(this.props.otpMode
             ? { codeOrQr: this.state.otp.trim() }
             : true);
-
         this.props.close();
     }
 
-    // Quand on clique sur "Cancel" ou fermeture
     cancel() {
-        this.props.resolve(false);    // exécute la fonction de rejet si définie
-        this.props.close();       // ferme la popup
+        this.props.resolve(false);
+        this.props.close();
     }
 }

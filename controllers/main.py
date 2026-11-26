@@ -1,20 +1,13 @@
 from odoo import http
 from odoo.http import request
 
-from odoo.addons.cartes_reduction.models.security_utils import (
-    log_security_event,
-    reject_suspicious_input,
-)
+from odoo.addons.cartes_reduction.models.security_utils import log_security_event
 
 
 class LoyaltyController(http.Controller):
 
     @http.route('/sale/order/get_cartes_data', type='json', auth='user')
     def get_cartes_data(self, partner_id):
-        if reject_suspicious_input(
-            request.env, "/sale/order/get_cartes_data", {"partner_id": partner_id}
-        ):
-            return request.make_response("Requête suspecte rejetée.", status=400)
         try:
             partner_id = int(partner_id)
         except (TypeError, ValueError):

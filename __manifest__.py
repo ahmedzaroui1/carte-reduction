@@ -1,6 +1,6 @@
 {
     'name': "Cartes de Réduction",
-    'version': '17.0.1.6.5',
+    'version': '17.0.1.6.6',
     'author': "Zaroui Ahmed Souleyman",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
@@ -56,6 +56,8 @@
             'cartes_reduction/static/src/xml/reduction_button.xml',
             'cartes_reduction/static/src/xml/pos_pop_up.xml',
             'cartes_reduction/static/src/xml/card_suggestion_popup_templates.xml',
+            'cartes_reduction/static/src/xml/pos_sotufab.xml',
+            'cartes_reduction/static/src/scss/pos_sotufab.scss',
 
 
         ],

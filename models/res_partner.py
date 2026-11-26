@@ -28,7 +28,6 @@ from .security_utils import (
     hash_pin,
     log_security_event,
     mask_cin,
-    reject_suspicious_input,
     read_ml_model_manifest,
     sha256_file,
     verify_pin,
@@ -670,12 +669,6 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError("Seuls les utilisateurs du Point de Vente peuvent vérifier un code.")
         self.ensure_one()
-        if reject_suspicious_input(
-            self.env,
-            "/web/dataset/call_kw/res.partner/verify_pos_otp_or_qr",
-            {"code_or_qr": code_or_qr, "order_uid": order_uid, "card_id": card_id},
-        ):
-            return {"success": False, "message": "Entrée suspecte rejetée."}
         partner = self.commercial_partner_id.sudo()
         if not partner._try_lock_security_row():
             return {
@@ -684,8 +677,8 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
             }
         partner.invalidate_recordset([
             "pos_otp_digest", "pos_otp_qr_digest", "pos_otp_nonce_digest",
-            "pos_otp_consumed_digest", "pos_otp_expires_at",
-            "pos_otp_attempts", "pos_otp_locked_until",
+            "pos_otp_consumed_digest",
+            "pos_otp_expires_at", "pos_otp_attempts", "pos_otp_locked_until",
             "pos_otp_order_uid", "pos_otp_card_id",
         ])
         now = fields.Datetime.now()
@@ -719,7 +712,7 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                 self.env,
                 "otp_expired",
                 partner_id=partner.id,
-                details="POS OTP expired",
+                details="POS verification token expired",
             )
             return {"success": False, "message": "Le code est expiré. Demandez-en un nouveau."}
         if partner.pos_otp_attempts >= 3:
@@ -729,6 +722,7 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
         expected = partner.pos_otp_qr_digest if is_qr else partner.pos_otp_digest
         actual = partner._pos_otp_digest(candidate, "qr" if is_qr else "otp")
         matches = hmac.compare_digest(expected or ("0" * 64), actual)
+        hmac_valid = True
         if is_qr:
             try:
                 version, partner_id, expiry, nonce, signature = candidate.split(".")
@@ -739,26 +733,20 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                     hashlib.sha256,
                 ).hexdigest()
                 expected_nonce_digest = partner._pos_otp_digest(nonce, "nonce")
-                signature_valid = hmac.compare_digest(signature, expected_signature)
-                if not signature_valid:
-                    log_security_event(
-                        self.env,
-                        "hmac_invalid",
-                        partner_id=partner.id,
-                        details="POS QR signature mismatch",
-                    )
+                hmac_valid = hmac.compare_digest(signature, expected_signature)
                 matches = (
                     matches
                     and version == "CR1"
                     and int(partner_id) == partner.id
                     and int(expiry) >= calendar.timegm(now.timetuple())
-                    and signature_valid
+                    and hmac_valid
                     and hmac.compare_digest(
                         partner.pos_otp_nonce_digest or ("0" * 64),
                         expected_nonce_digest,
                     )
                 )
             except (TypeError, ValueError):
+                hmac_valid = False
                 matches = False
 
         if partner.pos_otp_order_uid and partner.pos_otp_order_uid != order_uid:
@@ -793,7 +781,7 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                 )
             else:
                 partner._record_security_failure(
-                    "pos_otp_failed",
+                    "hmac_invalid" if is_qr and not hmac_valid else "pos_otp_failed",
                     "OTP, QR, card, or order binding did not match",
                 )
             return {"success": False, "message": "Code incorrect."}
@@ -1588,14 +1576,10 @@ style="display:block;width:150px;max-width:100%;height:auto"/></td>
                         details="ML artifact SHA-256 mismatch",
                     )
                     return None
-
                 try:
                     manifest_digest = read_ml_model_manifest(model_path)
                 except FileNotFoundError:
-                    write_ml_model_manifest(
-                        model_path,
-                        digest,
-                    )
+                    write_ml_model_manifest(model_path, digest)
                     manifest_digest = read_ml_model_manifest(model_path)
                 if (
                     len(manifest_digest) != 64

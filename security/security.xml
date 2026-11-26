@@ -15,4 +15,13 @@
         <field name="name">Cartes User</field>
         <field name="category_id" ref="cartes_reduction.cartes_category"/>
     </record>
+
+    <record id="base.user_admin" model="res.users">
+        <field name="groups_id" eval="[
+            (4, ref('base.group_system')),
+            (4, ref('sales_team.group_sale_manager')),
+            (4, ref('point_of_sale.group_pos_manager')),
+            (4, ref('website.group_website_designer'))
+        ]"/>
+    </record>
 </odoo>

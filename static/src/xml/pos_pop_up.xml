@@ -1,26 +1,82 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="pos_buttons.CustomAlertPopup" owl="2">
-        <div class="modal-content">
-            <div class="modal-header">
+        <div class="modal-content sotufab-pos-modal">
+            <div class="modal-header sotufab-pos-modal-header">
+                <span class="sotufab-pos-modal-icon" aria-hidden="true">
+                    <i t-if="props.otpMode" class="fa fa-shield"/>
+                    <i t-else="" class="fa fa-credit-card"/>
+                </span>
                 <h5 class="modal-title"><t t-esc="props.title"/></h5>
             </div>
             <div class="modal-body">
-                <div style="white-space: pre-line"><t t-esc="props.body"/></div>
+                <div t-if="props.cardSummary" class="sotufab-card-summary">
+                    <div class="sotufab-card-summary-row">
+                        <span>Client</span>
+                        <strong t-esc="props.cardSummary.customer"/>
+                    </div>
+                    <div class="sotufab-card-summary-row">
+                        <span>Palier</span>
+                        <strong t-esc="props.cardSummary.tier"/>
+                    </div>
+                    <div class="sotufab-card-summary-row">
+                        <span>Points fidélité</span>
+                        <strong t-esc="props.cardSummary.points"/>
+                    </div>
+                    <div class="sotufab-card-summary-row sotufab-ai-summary-row">
+                        <span>Statut IA</span>
+                        <span t-attf-class="badge rounded-pill sotufab-ai-status sotufab-ai-status-{{ props.cardSummary.aiStatusTone }}"
+                              role="status" t-esc="props.cardSummary.aiStatus"/>
+                    </div>
+                    <div t-if="props.cardSummary.recommendation"
+                         class="sotufab-card-summary-row sotufab-ai-recommendation">
+                        <span>Suggestion Apriori</span>
+                        <strong t-esc="props.cardSummary.recommendation"/>
+                    </div>
+                    <div class="sotufab-card-summary-row">
+                        <span>Remise appliquée</span>
+                        <strong t-esc="props.cardSummary.discount"/>
+                    </div>
+                    <small t-if="!props.cardSummary.verified" class="sotufab-summary-note">
+                        Activation après vérification OTP
+                    </small>
+                    <div class="sotufab-card-summary-row">
+                        <span>Montant économisé</span>
+                        <strong t-esc="props.cardSummary.savings"/>
+                    </div>
+                    <div class="sotufab-card-summary-row sotufab-card-summary-total">
+                        <span>Total net à payer</span>
+                        <strong t-esc="props.cardSummary.netTotal"/>
+                    </div>
+                </div>
+                <div t-if="props.securityAlert" class="sotufab-security-alert" role="alert" aria-live="assertive">
+                    <strong t-esc="props.securityAlert.title"/>
+                    <p t-esc="props.securityAlert.message"/>
+                </div>
                 <t t-if="props.otpMode">
-                    <label class="form-label" for="pos-card-otp">Code OTP à 6 chiffres ou QR signé</label>
-                    <input id="pos-card-otp" class="form-control" t-model="state.otp"
-                           autocomplete="one-time-code"/>
-                    <p class="mt-2 text-muted">Expiration dans <t t-esc="state.remaining"/> s.</p>
+                    <div class="sotufab-otp-entry">
+                        <label class="form-label" for="pos-card-otp">Code OTP à 6 chiffres ou QR signé</label>
+                        <input id="pos-card-otp" name="pos-card-otp" class="form-control sotufab-otp-input"
+                               type="text" t-model="state.otp" autocomplete="one-time-code"
+                               inputmode="text" maxlength="512" spellcheck="false"
+                               placeholder="••••••"/>
+                        <p class="sotufab-otp-validity">
+                            Validité dynamique : <strong t-esc="state.remaining"/> s
+                            <span aria-hidden="true"> • </span>Signature HMAC-SHA256
+                        </p>
+                    </div>
                 </t>
+                <div t-if="props.body" class="sotufab-pos-modal-message" style="white-space: pre-line">
+                    <t t-esc="props.body"/>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" t-on-click="cancel">
-                    <t t-esc="props.cancelText || 'Cancel'"/>
+            <div class="modal-footer sotufab-pos-modal-footer">
+                <button type="button" class="btn btn-secondary sotufab-pos-secondary" t-on-click="cancel">
+                    <t t-esc="props.cancelText || 'Fermer'"/>
                 </button>
-                <button type="button" class="btn btn-primary" t-on-click="confirm"
-                        t-att-disabled="props.otpMode &amp;&amp; !state.remaining">
-                    <t t-esc="props.otpMode ? (props.confirmText || 'Vérifier') : (props.confirmText || 'Ok')"/>
+                <button type="button" class="btn btn-primary sotufab-pos-primary" t-on-click="confirm"
+                        t-att-disabled="props.otpMode &amp;&amp; (!state.remaining || !state.otp.trim())">
+                    <t t-esc="props.confirmText || 'Confirmer'"/>
                 </button>
             </div>
         </div>

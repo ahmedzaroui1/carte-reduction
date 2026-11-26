@@ -16,6 +16,10 @@ from odoo.addons.cartes_reduction.models.security_utils import (
     verify_pin,
 )
 from odoo.addons.cartes_reduction.controllers.main import LoyaltyController
+from odoo.addons.cartes_reduction.models.security_input_guard import (
+    _find_signature,
+    _scan,
+)
 
 
 class TestSecurityHardening(TransactionCase):
@@ -178,6 +182,24 @@ class TestSecurityHardening(TransactionCase):
         ], limit=1)
         self.assertTrue(event)
 
+    def test_input_guard_detects_requested_signatures_and_skips_passwords(self):
+        examples = (
+            ("<script>alert(1)</script>", "xss_script"),
+            ("onerror=alert(1)", "xss_event_handler"),
+            ("' OR 1=1", "sqli_boolean"),
+            ("UNION SELECT password", "sqli_union"),
+            ("value--", "sqli_comment"),
+        )
+        for value, expected in examples:
+            with self.subTest(value=value):
+                self.assertEqual(_find_signature(value), expected)
+
+        self.assertFalse(_scan({"password": "' OR 1=1"}))
+        self.assertEqual(
+            _scan({"params": {"search": "%3Cscript%3E"}}),
+            "xss_script",
+        )
+
     def test_audit_chain_verification_and_sql_payload_modification(self):
         from odoo.addons.cartes_reduction.models.security_utils import log_security_event
 
@@ -186,6 +208,15 @@ class TestSecurityHardening(TransactionCase):
             "cin_reveal",
             partner_id=self.partner.id,
             details="chain verification test",
+        )
+        event = self.env["cartes.reduction.security.audit"].search(
+            [("details", "=", "chain verification test")],
+            order="id desc",
+            limit=1,
+        )
+        self.assertIn(
+            event.actor_scope,
+            {"pos_cashier", "ecommerce_client", "administrator", "unknown"},
         )
         result = self.env["cartes.reduction.security.audit"].verify_audit_chain()
         self.assertTrue(result["valid"])
@@ -205,7 +236,6 @@ class TestSecurityHardening(TransactionCase):
         with tempfile.NamedTemporaryFile(delete=False) as artifact:
             artifact.write(b"tampered-model-artifact")
             model_path = artifact.name
-        manifest_path = f"{model_path}.sha256"
         try:
             wrong_checksum = "0" * 64
             with (
@@ -231,6 +261,7 @@ class TestSecurityHardening(TransactionCase):
                 patch("odoo.addons.cartes_reduction.models.res_partner.os.path.join", return_value=model_path),
             ):
                 self.assertIs(partner._get_ml_model(), sentinel)
+            manifest_path = f"{model_path}.sha256"
             with open(manifest_path, "r", encoding="ascii") as manifest:
                 self.assertEqual(manifest.read().strip(), correct_checksum)
 
@@ -245,7 +276,7 @@ class TestSecurityHardening(TransactionCase):
                 self.assertFalse(partner._get_ml_model())
                 load.assert_not_called()
         finally:
-            for path in (model_path, manifest_path):
+            for path in (model_path, f"{model_path}.sha256"):
                 if os.path.exists(path):
                     os.unlink(path)
 
@@ -295,37 +326,32 @@ class TestSecurityHardening(TransactionCase):
         self.assertTrue(event)
 
     def test_external_audit_seal_is_chained_and_detects_modification(self):
-        from odoo.addons.cartes_reduction.models import security_audit
+        from odoo.addons.cartes_reduction.models import audit_seal_manager
 
         with tempfile.TemporaryDirectory() as directory:
             seal_path = os.path.join(directory, "head_hash.seal")
             with (
-                patch.object(security_audit, "_SEAL_PATH", seal_path),
-                patch.object(
-                    security_audit,
-                    "get_audit_seal_hmac_secret",
-                    return_value=b"x" * 32,
-                ),
+                patch.object(audit_seal_manager, "_SEAL_PATH", seal_path),
+                patch.object(audit_seal_manager, "_seal_secret", return_value=b"x" * 32),
             ):
                 first_head = "a" * 64
                 second_head = "b" * 64
-                self.assertEqual(security_audit._initialize_external_seal(first_head), 1)
+                self.assertEqual(audit_seal_manager._initialize_seal(first_head), 1)
                 self.assertEqual(
-                    security_audit._append_external_seal(
+                    audit_seal_manager._append_seal(
                         second_head, {first_head, second_head}
                     ),
                     2,
                 )
-                verified = security_audit._read_seal_chain()
+                verified = audit_seal_manager._read_seal_chain()
                 self.assertTrue(verified["valid"])
                 self.assertEqual(verified["sequence"], 2)
                 self.assertEqual(verified["head_hash"], second_head)
 
                 with open(seal_path, "r+", encoding="utf-8") as seal_file:
                     lines = seal_file.readlines()
-                    modified = lines[-1].replace(second_head, "c" * 64)
-                    lines[-1] = modified
+                    lines[-1] = lines[-1].replace(second_head, "c" * 64)
                     seal_file.seek(0)
                     seal_file.writelines(lines)
                     seal_file.truncate()
-                self.assertFalse(security_audit._read_seal_chain()["valid"])
+                self.assertFalse(audit_seal_manager._read_seal_chain()["valid"])
