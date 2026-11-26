@@ -4,7 +4,9 @@ stages:
 
 gitleaks:
   stage: security
-  image: zricethezav/gitleaks:v8.28.0
+  image:
+    name: zricethezav/gitleaks:v8.28.0
+    entrypoint: [""]
   script:
     - mkdir -p security-reports
     - gitleaks detect --source=. --redact --report-format=json --report-path=security-reports/gitleaks-report.json
