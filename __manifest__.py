@@ -1,7 +1,7 @@
 {
     'name': "Cartes de Réduction",
     'version': '17.0.1.6.5',
-    'author': "Sotufab Distribution Tunisie",
+    'author': "Zaroui Ahmed Souleyman",
     'category': 'Sales',
     'summary': "Gérer les cartes de réduction des clients",
     'depends': ['base', 'sale_management', 'website', 'account', 'point_of_sale', 'loyalty', 'product', 'pos_loyalty', 'sale', 'sale_loyalty', 'web', 'website_sale', 'website_sale_loyalty', 'portal', 'auth_signup', 'payment_demo'],
