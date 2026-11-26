@@ -10,6 +10,9 @@ from odoo.addons.cartes_reduction.models.res_users import (
     PASSWORD_POLICY_MESSAGE,
 )
 
+TEST_PASSWORD = "Test1234"
+UPDATED_TEST_PASSWORD = "Test5678"
+
 
 class TestPasswordAndEmailPolish(TransactionCase):
 
@@ -28,8 +31,8 @@ class TestPasswordAndEmailPolish(TransactionCase):
                 ):
                     users.create({**base_values, "password": password})
 
-        user = users.create({**base_values, "password": "StrongPass123"})
-        user.write({"password": "AnotherStrong4"})
+        user = users.create({**base_values, "password": TEST_PASSWORD})
+        user.write({"password": UPDATED_TEST_PASSWORD})
         with self.assertRaisesRegex(
             ValidationError,
             re.escape(PASSWORD_POLICY_MESSAGE),
@@ -219,12 +222,12 @@ class TestPortalShopRedirect(HttpCase):
         cls.env["res.users"].with_context(skip_card_eval=True).create({
             "name": "Shop redirect test customer",
             "login": cls.portal_login,
-            "password": "StrongPass123",
+            "password": TEST_PASSWORD,
             "groups_id": [(6, 0, [cls.env.ref("base.group_portal").id])],
         })
 
     def test_authenticated_portal_default_landing_is_shop(self):
-        self.authenticate(self.portal_login, "StrongPass123")
+        self.authenticate(self.portal_login, TEST_PASSWORD)
         response = self.url_open(
             "/web/login",
             allow_redirects=False,
