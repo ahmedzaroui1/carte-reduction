@@ -1,6 +1,13 @@
 stages:
   - security
   - config
+  - build
+  - scan
+  - test
+
+variables:
+  # One immutable tag per commit: the exact image that is scanned is the one tested.
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
 
 gitleaks:
   stage: security
@@ -49,3 +56,89 @@ nginx-config:
     - cp nginx/odoo-security.conf /etc/nginx/conf.d/default.conf
     - printf '127.0.0.1 web\n' >> /etc/hosts
     - nginx -t
+
+# --------------------------------------------------------------------------
+# Image pipeline: build -> container scan -> smoke test.
+# Scanning needs NO database: Trivy only reads the image layers.
+# Only the smoke test runs Odoo, with a throwaway Postgres "service".
+# --------------------------------------------------------------------------
+
+build-image:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_BUILDKIT: "1"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - >
+      docker build
+      --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
+      --label org.opencontainers.image.source="$CI_PROJECT_URL"
+      -t "$IMAGE_TAG" .
+    - docker push "$IMAGE_TAG"
+
+container-scan:
+  stage: scan
+  needs: [build-image]
+  image:
+    name: aquasec/trivy:0.59.1
+    entrypoint: [""]
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+    TRIVY_AUTH_URL: $CI_REGISTRY
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: .trivycache/
+  cache:
+    key: trivy-db
+    paths:
+      - .trivycache/
+  script:
+    - mkdir -p security-reports
+    # Full report for the GitLab Security tab / MR widget (never fails the job).
+    - trivy image --scanners vuln --format template --template "@/contrib/gitlab.tpl" --output gl-container-scanning-report.json "$IMAGE_TAG"
+    # SBOM of the final image.
+    - trivy image --format cyclonedx --output security-reports/sbom-image-cyclonedx.json "$IMAGE_TAG"
+    # Gate: fail on fixable HIGH/CRITICAL CVEs or secrets baked into the image.
+    # Accepted exceptions live in .trivyignore (with expiry dates).
+    - trivy image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --output security-reports/trivy-image.txt "$IMAGE_TAG" || { cat security-reports/trivy-image.txt; exit 1; }
+    - cat security-reports/trivy-image.txt
+  artifacts:
+    when: always
+    paths:
+      - security-reports/trivy-image.txt
+      - security-reports/sbom-image-cyclonedx.json
+    reports:
+      container_scanning: gl-container-scanning-report.json
+
+odoo-smoke-test:
+  stage: test
+  needs: [build-image, container-scan]
+  image:
+    name: $IMAGE_TAG
+    entrypoint: [""]
+  services:
+    # Throwaway database, reachable as "db" - only lives for this job.
+    - name: postgres:15-alpine
+      alias: db
+  variables:
+    GIT_STRATEGY: none
+    POSTGRES_USER: odoo
+    POSTGRES_PASSWORD: ci_only_ephemeral
+    POSTGRES_DB: postgres
+    CARTES_AUDIT_SEAL_DATABASE: disabled
+  script:
+    - set -o pipefail
+    - export CARTES_HMAC_SECRET="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+    - export CARTES_FERNET_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+    - >
+      odoo --db_host=db --db_user="$POSTGRES_USER" --db_password="$POSTGRES_PASSWORD"
+      -d ci_smoke
+      --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-addons
+      -i cartes_reduction --without-demo=all --stop-after-init
+      2>&1 | tee /tmp/odoo-install.log
+    - "! grep -E ' (ERROR|CRITICAL) ' /tmp/odoo-install.log"
